@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9 beta';
+const VERSION = '0.9.1 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -69,7 +69,7 @@ function relDay(iso) {
 }
 
 const GROUPS = [
-  { ru: 'Организация', en: 'Production', glow: 'pink', roles: [['producer', 'Продюсер', 'Producer', ['брифы', 'сметы', 'кастинг', 'локации', 'ведение клиента']], ['creative', 'Креативный директор', 'Creative director', ['концепция', 'мудборды', 'арт-дирекшн на площадке']], ['art', 'Арт-директор', 'Art director', ['визуальная концепция', 'контроль кадра', 'сет']], ['prodassist', 'Ассистент продюсера', 'Production assistant', ['логистика', 'закупки', 'встреча команды']], ['casting', 'Кастинг-директор', 'Casting director', ['модели', 'герои', 'лонг-листы']]] },
+  { ru: 'Организация', en: 'Production', glow: 'pink', roles: [['producer', 'Продюсер', 'Producer', ['брифы', 'сметы', 'кастинг', 'локации', 'ведение клиента']], ['director', 'Режиссёр', 'Director', ['реклама', 'клипы', 'fashion-видео', 'рилсы', 'работа с актёрами']], ['creative', 'Креативный директор / арт-директор', 'Creative / art director', ['концепция', 'мудборды', 'арт-дирекшн на площадке', 'контроль кадра']], ['prodassist', 'Ассистент продюсера', 'Production assistant', ['логистика', 'закупки', 'встреча команды']], ['casting', 'Кастинг-директор', 'Casting director', ['модели', 'герои', 'лонг-листы']]] },
   { ru: 'Камера и свет', en: 'Camera & light', glow: 'teal', roles: [['photo', 'Фотограф', 'Photographer', ['fashion', 'бьюти', 'предметка', 'портрет', 'репортаж', 'ретушь сам']], ['video', 'Видеограф', 'Videographer', ['рилсы', 'реклама', 'клипы', 'монтирую сам']], ['mobile', 'Мобилограф', 'Mobile creator', ['рилсы', 'сторис', 'контент на телефон']], ['light', 'Световик', 'Gaffer', ['импульсный свет', 'постоянный свет', 'свой свет']], ['photoassist', 'Ассистент фотографа', 'Photo assistant', ['свет', 'отражатели', 'бэкапы']], ['dit', 'Цифровой техник', 'Digital tech', ['съёмка в ноутбук', 'бэкапы', 'превью клиенту']], ['bts', 'Бэкстейдж', 'Behind the scenes', ['фото', 'видео', 'рилсы со съёмки']], ['drone', 'Дрон-оператор', 'Drone operator', ['съёмка с воздуха', 'свой дрон']]] },
   { ru: 'Образ', en: 'Look', glow: 'pink', roles: [['stylist', 'Стилист', 'Stylist', ['подбор образов', 'аренда вещей', 'свой гардероб']], ['stylistassist', 'Ассистент стилиста', 'Stylist assistant', ['отпаривание', 'возврат вещей', 'переодевания']], ['mua', 'Визажист', 'Make-up artist', ['нюд', 'вечерний', 'графичный', 'грим для видео']], ['hair', 'Стилист по волосам', 'Hair stylist', ['укладки', 'плетения', 'парики']], ['nails', 'Мастер маникюра', 'Nail artist', ['нюд', 'дизайн', 'руки для крупных планов']]] },
   { ru: 'В кадре', en: 'In frame', glow: 'lemon', roles: [['model', 'Модель', 'Model', ['fashion', 'бьюти', 'коммерция', 'рилсы', 'руки и детали']], ['actor', 'Актёр, актриса', 'Actor', ['реклама', 'короткий метр', 'говорю на камеру']], ['dancer', 'Танцор', 'Dancer', ['современный танец', 'хореография для клипов']], ['blogger', 'Блогер', 'Creator', ['свой блог', 'интеграции', 'говорю на камеру']], ['hero', 'Герой съёмки', 'Real person', ['не модель', 'эксперт', 'сотрудник бренда']]] },
@@ -79,6 +79,7 @@ const GROUPS = [
 ];
 const ROLE = {};
 GROUPS.forEach((g) => g.roles.forEach((r) => { ROLE[r[0]] = { id: r[0], ru: r[1], en: r[2], skills: r[3], glow: g.glow }; }));
+ROLE.art = ROLE.creative;
 const roleName = (id) => (ROLE[id] ? (L() === 'en' ? ROLE[id].en : ROLE[id].ru) : (id || ''));
 const CLIENT_ROLES = ['brand', 'agency', 'client'];
 const FOOD = [['all', 'ем всё', 'eat everything'], ['nomeat', 'без мяса', 'no meat'], ['nofish', 'без рыбы', 'no fish'], ['gluten', 'без глютена', 'gluten-free'], ['lactose', 'без лактозы', 'lactose-free'], ['vegan', 'веган', 'vegan']];
@@ -108,7 +109,9 @@ const I = {
 /* ---------- shoot helpers ---------- */
 const getShoot = (id) => S.shoots.find((s) => s.id === id);
 const titleOf = (s) => [s.client, s.what].filter(Boolean).join(' · ') || T('Новая съёмка', 'New shoot');
-const durationH = (s) => { const a = mins(s.call), b = mins(s.end); return a != null && b != null && b > a ? (b - a) / 60 : 0; };
+const durationH = (s) => { const a = mins(s.call), b = mins(s.end); if (a == null || b == null || a === b) return 0; return ((b - a + 1440) % 1440) / 60; };
+const dayKey = (s, t) => { const m = mins(t); if (m == null) return 99999; const c = mins(s.call) ?? 0; return m < c - 120 ? m + 1440 : m; };
+const sortedTiming = (s) => [...s.timing].sort((a, c) => dayKey(s, a.t) - dayKey(s, c.t));
 const isPast = (s) => s.status === 'done' || (s.date && s.date < todayIso());
 const hasMeal = (s) => s.timing.some((x) => /обед|ланч|еда|перекус|lunch|meal|food/i.test(x.w));
 const sortByDate = (a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (mins(a.call) || 0) - (mins(b.call) || 0);
@@ -229,7 +232,7 @@ function nav(active) {
 const backBtn = (href) => '<a class="iconbtn" href="' + href + '" aria-label="' + T('Назад', 'Back') + '">' + I.back + '</a>';
 const initials = (n) => (String(n || '?').trim()[0] || '?').toUpperCase();
 const chip = (label, pressed, act, arg, cls = '') => '<button class="chip ' + cls + '" aria-pressed="' + (pressed ? 'true' : 'false') + '" data-a="' + act + '" data-x="' + esc(arg) + '">' + esc(label) + '</button>';
-const inp = (b, val, o = {}) => o.type === 'time' ? '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" placeholder="09:00" data-b="' + esc(b) + '" value="' + esc(val) + '"' + (o.r ? ' data-r="1"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + (o.style ? ' style="' + o.style + '"' : '') + '>' : '<input class="inp' + (o.mono ? ' mono' : '') + (o.cls ? ' ' + o.cls : '') + '" data-b="' + esc(b) + '" value="' + esc(val) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.type ? ' type="' + o.type + '"' : '') + (o.num ? ' inputmode="numeric"' : '') + (o.r ? ' data-r="1"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + '>';
+const inp = (b, val, o = {}) => o.type === 'time' ? '<input class="inp mono" type="time" data-time="1" data-b="' + esc(b) + '" value="' + esc(val) + '"' + (o.r ? ' data-r="1"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + (o.style ? ' style="' + o.style + '"' : '') + '>' : '<input class="inp' + (o.mono ? ' mono' : '') + (o.cls ? ' ' + o.cls : '') + '" data-b="' + esc(b) + '" value="' + esc(val) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.type ? ' type="' + o.type + '"' : '') + (o.num ? ' inputmode="numeric"' : '') + (o.r ? ' data-r="1"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + '>';
 const field = (label, html) => '<label class="f">' + esc(label) + html + '</label>';
 const sw = (label, sub, on, act, arg) => '<button class="switch" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" data-a="' + act + '" data-x="' + esc(arg || '') + '"><span class="col" style="gap:2px"><span style="font-weight:500">' + esc(label) + '</span>' + (sub ? '<span class="tiny muted">' + esc(sub) + '</span>' : '') + '</span><span class="track"><i></i></span></button>';
 
@@ -363,7 +366,7 @@ function vNew() {
   }
   if (n) {
     h += '<div class="card"><div class="grid2">' + field(n === 'personal' ? T('Клиент', 'Client') : n === 'creative' ? T('Название', 'Title') : T('Бренд / клиент', 'Brand / client'), '<input class="inp" id="nfClient" placeholder="' + (n === 'personal' ? T('Анна К.', 'Anna K.') : n === 'creative' ? 'TFP' : T('Марта', 'Brand')) + '" value="' + (n === 'creative' ? 'TFP' : '') + '">') + field(T('Что снимаем', 'What'), '<input class="inp" id="nfWhat" placeholder="' + (n === 'personal' ? T('портрет', 'portrait') : T('лукбук', 'lookbook')) + '">') + '</div>' +
-      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="nfDate">') + field(T('Сбор', 'Call time'), '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" id="nfCall" value="' + ({ brand: '09:00', personal: '11:00', creative: '12:00' }[n] || '10:00') + '">') + '</div></div>';
+      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="nfDate">') + field(T('Сбор', 'Call time'), '<input class="inp mono" type="time" data-time="1" id="nfCall" value="' + ({ brand: '09:00', personal: '11:00', creative: '12:00' }[n] || '10:00') + '">') + '</div></div>';
   }
   h += '</div><div class="cta nonav"><button class="btn big" data-a="createShoot"' + (n ? '' : ' disabled') + '>' + (n ? T('Создать', 'Create') : T('Выбери формат', 'Pick a format')) + '</button></div>';
   return h;
@@ -421,11 +424,11 @@ function pTiming(s) {
   const b = 'shoot:' + s.id;
   let h = '<div class="row between pad4"><span class="small muted">' + T('Длительность', 'Duration') + ': <b class="mono">' + (durationH(s) ? durationH(s).toFixed(1).replace('.0', '') + T(' ч', 'h') : '—') + '</b></span>' + (durationH(s) > 5 && !hasMeal(s) ? '<span class="badge warn">' + T('нужен обед', 'add lunch') + '</span>' : '') + '</div>';
   h += '<div class="card tight">';
-  const rows = [...s.timing].sort((a, c) => (mins(a.t) ?? 9999) - (mins(c.t) ?? 9999));
+  const rows = sortedTiming(s);
   rows.forEach((x) => { h += '<div class="tl">' + inp(b + '.timing:' + x.id + '.t', x.t, { type: 'time', r: true, aria: T('Время', 'Time'), style: 'padding:0 8px;font-size:15px' }) + '<input class="inp" data-b="' + b + '.timing:' + x.id + '.w" value="' + esc(x.w) + '" aria-label="' + T('Что происходит', 'What happens') + '"><button class="textbtn" data-a="delRow" data-s="' + s.id + '" data-x="timing|' + x.id + '" aria-label="' + T('Удалить', 'Delete') + '">' + I.x.replace('<svg', '<svg width="16" height="16"') + '</button></div>'; });
   if (!rows.length) h += '<div class="empty">' + T('Пока пусто', 'Empty') + '</div>';
   h += '</div><div class="grid2"><button class="btn soft" data-a="addTiming" data-s="' + s.id + '">' + T('+ Строка', '+ Row') + '</button>' + (!hasMeal(s) ? '<button class="btn soft" data-a="addLunch" data-s="' + s.id + '">' + T('+ Обед', '+ Lunch') + '</button>' : '<span></span>') + '</div>';
-  h += '<span class="tiny muted pad4">' + T('Совет: дольше 5 часов — кормим команду. Дольше 10 — это переработка.', 'Tip: over 5 hours — feed the team. Over 10 — overtime.') + '</span>';
+  h += (mins(s.end) != null && mins(s.call) != null && mins(s.end) < mins(s.call) ? '<span class="small pad4">' + T('Съёмка через полночь: конец ' + esc(s.end) + ' — уже следующего дня. Тайминг идёт по порядку от сбора.', 'Overnight shoot: wrap at ' + esc(s.end) + ' is the next day.') + '</span>' : '') + '<span class="tiny muted pad4">' + T('Совет: дольше 5 часов — кормим команду. Дольше 10 — это переработка.', 'Tip: over 5 hours — feed the team. Over 10 — overtime.') + '</span>';
   return h;
 }
 function pTeam(s) {
@@ -474,7 +477,7 @@ function pBudget(s) {
 function printHtml(s) {
   let h = '<div class="printarea show"><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px"><div><div style="font-family:Neucha,var(--head);font-size:22px">set</div><h1 style="margin:6px 0 0;font-family:var(--head);font-weight:500;letter-spacing:-0.03em;line-height:1">' + esc(titleOf(s)) + '</h1></div><div style="text-align:right;font-size:12px">' + (s.date ? '<b style="font-size:16px">' + esc(fmtDate(s.date, { wd: true, year: true })) + '</b><br>' : '') + T('сбор', 'call') + ' ' + esc(s.call) + ' · ' + T('конец', 'wrap') + ' ' + esc(s.end) + '</div></div>';
   if (s.place || s.address) h += '<p style="margin:10px 0 0"><b>' + esc(s.place) + '</b> ' + esc(s.address) + '</p>';
-  if (s.timing.length) h += '<h3 style="margin-top:16px">' + T('Тайминг', 'Schedule') + '</h3><table><tbody>' + [...s.timing].sort((a, c) => (mins(a.t) ?? 9999) - (mins(c.t) ?? 9999)).map((x) => '<tr><td style="width:60px;font-family:var(--mono)">' + esc(x.t) + '</td><td>' + esc(x.w) + '</td></tr>').join('') + '</tbody></table>';
+  if (s.timing.length) h += '<h3 style="margin-top:16px">' + T('Тайминг', 'Schedule') + '</h3><table><tbody>' + sortedTiming(s).map((x) => '<tr><td style="width:60px;font-family:var(--mono)">' + esc(x.t) + '</td><td>' + esc(x.w) + '</td></tr>').join('') + '</tbody></table>';
   if (s.team.length) h += '<h3 style="margin-top:16px">' + T('Команда', 'Team') + '</h3><table><thead><tr><th>' + T('Имя', 'Name') + '</th><th>' + T('Роль', 'Role') + '</th><th>' + T('Сбор', 'Call') + '</th><th>' + T('Связь', 'Contact') + '</th></tr></thead><tbody>' + s.team.map((m) => '<tr><td>' + esc(m.name) + '</td><td>' + esc(roleName(m.role)) + '</td><td style="font-family:var(--mono)">' + esc(m.call || s.call) + '</td><td>' + esc(S.people.find((p) => p.id === m.pid)?.phone || '') + '</td></tr>').join('') + '</tbody></table>';
   const food = teamFood(s); if (food) h += '<p style="margin-top:10px"><b>' + T('Еда', 'Food') + ':</b> ' + esc(food) + '</p>';
   if (s.modules.looks && s.looks.length) h += '<h3 class="pb" style="margin-top:16px">' + T('Образы', 'Looks') + '</h3><div class="looks">' + s.looks.map((l, i) => '<div class="look"><div style="font-family:var(--mono);font-size:11px">' + T('ОБРАЗ', 'LOOK') + ' ' + pad(i + 1) + '</div><b style="font-size:15px">' + esc(l.name || '—') + '</b><br>' + T('Модель', 'Model') + ': ' + esc(l.model || '—') + '<br>' + T('Одежда', 'Clothes') + ': ' + esc(l.clothes || '—') + '<br>' + T('Мейк', 'Make-up') + ': ' + esc(l.makeup || '—') + (l.mua ? ' (' + esc(l.mua) + ')' : '') + '<br>' + T('Волосы', 'Hair') + ': ' + esc(l.hair || '—') + '<div style="margin-top:6px">☐ ' + T('снят', 'shot') + '</div></div>').join('') + '</div>';
@@ -496,8 +499,9 @@ function vOnSet(id) {
   const cur = left[0];
   const now = new Date();
   const nm = now.getHours() * 60 + now.getMinutes();
-  const tl = [...s.timing].sort((a, c) => (mins(a.t) ?? 0) - (mins(c.t) ?? 0));
-  const nextT = s.date === todayIso() ? tl.find((x) => (mins(x.t) ?? 0) > nm) : null;
+  const tl = sortedTiming(s);
+  const nmK = nm < (mins(s.call) ?? 0) - 120 ? nm + 1440 : nm;
+  const nextT = s.date === todayIso() || s.date === isoOf(new Date(Date.now() - 864e5)) ? tl.find((x) => dayKey(s, x.t) > nmK) : null;
   let h = '<div class="screen dark has-cta" style="margin:0 -0px"><div class="top"><span class="kicker" style="color:#9A968C">' + T('Режим площадки', 'On set') + ' · ' + esc(titleOf(s)) + '</span><a class="iconbtn" href="#/p/' + s.id + '" aria-label="' + T('Выйти', 'Exit') + '">' + I.x + '</a></div>';
   h += '<div class="row between" style="align-items:flex-end"><span class="big-date" style="font-size:84px">' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + '</span><span class="mono small" style="color:#9A968C;padding-bottom:10px">' + (looks.length - left.length) + '/' + looks.length + ' ' + T('образов', 'looks') + '</span></div>';
   if (nextT) h += '<div class="hint"><span class="dot"></span><span>' + T('Дальше в ', 'Next at ') + esc(nextT.t) + ': ' + esc(nextT.w) + '</span></div>';
@@ -510,7 +514,7 @@ function vOnSet(id) {
   } else if (looks.length) {
     h += '<div style="background:#ECE97E;color:var(--ink);border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:10px"><span class="h1" style="font-size:44px">' + T('Снято!', 'That’s a wrap!') + '</span><span>' + T('Все образы сняты. Вещи — по списку возврата.', 'All looks shot. Pack and return the clothes.') + '</span><a class="btn" href="#/p/' + s.id + '/wrap">' + T('Что дальше', 'What’s next') + '</a></div>';
   }
-  h += '<div class="card tight" style="background:#232328">' + looks.map((l, i) => '<button class="li" data-a="toggleLook" data-s="' + s.id + '" data-x="' + l.id + '" style="color:#fff"><span class="check ' + (l.done ? 'on' : '') + '">' + (l.done ? '✓' : '') + '</span><span class="grow ' + (l.done ? 'strike' : '') + '">' + pad(i + 1) + ' · ' + esc(l.name || '') + (l.model ? ' · ' + esc(l.model) : '') + '</span></button>').join('') + '</div>';
+  if (looks.length) h += '<div class="card tight" style="background:#232328">' + looks.map((l, i) => '<button class="li" data-a="toggleLook" data-s="' + s.id + '" data-x="' + l.id + '" style="color:#fff"><span class="check ' + (l.done ? 'on' : '') + '">' + (l.done ? '✓' : '') + '</span><span class="grow ' + (l.done ? 'strike' : '') + '">' + pad(i + 1) + ' · ' + esc(l.name || '') + (l.model ? ' · ' + esc(l.model) : '') + '</span></button>').join('') + '</div>';
   h += '</div>';
   if (cur) h += '<div class="cta nonav dark"><button class="btn big white" data-a="toggleLook" data-s="' + s.id + '" data-x="' + cur.id + '">' + T('Снято — следующий', 'Shot — next') + '</button></div>';
   return h;
@@ -660,7 +664,7 @@ function vSheet() {
     const s = getShoot(sh.s); const m = sh.data;
     h += '<div class="row between"><h2>' + (sh.isNew ? T('Новый человек', 'New person') : T('В команде', 'Team member')) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>' +
       field(T('Имя', 'Name'), '<input class="inp" id="mName" value="' + esc(m.name) + '" placeholder="' + T('Карина', 'Name') + '">') + field(T('Роль на этой съёмке', 'Role on this shoot'), roleSelect('', m.role).replace('data-b=""', 'id="mRole"')) +
-      '<div class="grid2">' + field(T('Сбор', 'Call'), '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" id="mCall" value="' + esc(m.call || s.call) + '">') + field(T('Ставка, ₽', 'Rate'), '<input class="inp mono" inputmode="numeric" id="mRate" value="' + esc(m.rate) + '">') + '</div>' +
+      '<div class="grid2">' + field(T('Сбор', 'Call'), '<input class="inp mono" type="time" data-time="1" id="mCall" value="' + esc(m.call || s.call) + '">') + field(T('Ставка, ₽', 'Rate'), '<input class="inp mono" inputmode="numeric" id="mRate" value="' + esc(m.rate) + '">') + '</div>' +
       (sh.isNew ? '<div class="grid2">' + field(T('Телефон', 'Phone'), '<input class="inp" type="tel" id="mPhone">') + field('Instagram', '<input class="inp" id="mInsta" placeholder="@">') + '</div>' : '') +
       '<button class="btn big" data-a="saveMember">' + T('Сохранить', 'Save') + '</button>' + (!sh.isNew ? '<button class="btn danger" data-a="removeMember">' + T('Убрать из проекта', 'Remove from project') + '</button>' : '');
   }
@@ -686,7 +690,7 @@ function vSheet() {
     const clash = s.date && S.shoots.find((x) => x.id !== s.id && x.date === s.date);
     h += '<div class="row between"><h2>' + (sh.isNew ? T('Своя съёмка', 'Own shoot') : esc(titleOf(s))) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>';
     if (own) h += field(T('Что снимаем', 'What'), '<input class="inp" id="oTitle" value="' + esc(s.client || s.what ? titleOf(s) : '') + '" placeholder="' + T('Шоурум · лукбук', 'Showroom · lookbook') + '">') +
-      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="oDate" value="' + esc(s.date) + '" data-a2="ownDate">') + field(T('Сбор', 'Call'), '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" placeholder="10:00" id="oCall" value="' + esc(s.call) + '">') + '</div>';
+      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="oDate" value="' + esc(s.date) + '" data-a2="ownDate">') + field(T('Сбор', 'Call'), '<input class="inp mono" type="time" data-time="1" id="oCall" value="' + esc(s.call) + '">') + '</div>';
     if (clash) h += '<span class="small" style="color:var(--red);font-weight:600">' + T('В этот день уже есть: ', 'Already booked that day: ') + esc(titleOf(clash)) + '</span>';
     h += '<div class="grid2">' + field(T('Роль', 'Role'), roleSelect('', s.my.role).replace('data-b=""', 'id="oRole"')) + field(T('Сумма, ₽', 'Amount'), '<input class="inp mono" inputmode="numeric" id="oFee" value="' + esc(s.my.fee) + '" placeholder="' + T('0 — TFP', '0 = TFP') + '">') + '</div>' +
       '<div class="row between"><span>' + T('Смен', 'Shifts') + '</span><span class="row"><button class="iconbtn" data-a="sheetShift" data-x="-1">−</button><span class="mono" id="oShifts" style="min-width:24px;text-align:center">' + s.my.shifts + '</span><button class="iconbtn" data-a="sheetShift" data-x="1">+</button></span></div>' +
@@ -733,8 +737,8 @@ const A = {
   toggleCheck: (el) => { const s = getShoot(el.dataset.s); const c = s.checklist.find((x) => x.id === el.dataset.x); c.done = !c.done; save(); render(); },
   addCheck: (el) => { const s = getShoot(el.dataset.s); const v = $('#newCheck').value.trim(); if (!v) return; s.checklist.push({ id: uid(), text: v, done: false }); save(); render(); $('#newCheck')?.focus(); },
   delRow: (el) => { const s = getShoot(el.dataset.s); const [arr, id] = el.dataset.x.split('|'); if (arr === 'looks' && !confirm(T('Удалить образ?', 'Delete this look?'))) return; s[arr] = s[arr].filter((x) => x.id !== id); save(); render(); },
-  addTiming: (el) => { const s = getShoot(el.dataset.s); const last = [...s.timing].sort((a, c) => (mins(c.t) ?? 0) - (mins(a.t) ?? 0))[0]; const m = last ? (mins(last.t) ?? 600) + 30 : mins(s.call) ?? 600; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60), w: '' }); save(); render(); },
-  addLunch: (el) => { const s = getShoot(el.dataset.s); const a = mins(s.call) ?? 600, b = mins(s.end) ?? a + 480; const m = Math.round((a + (b - a) / 2) / 30) * 30; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60)) + ':' + pad(m % 60), w: T('Обед для команды', 'Team lunch') }); const f = teamFood(s); save(); toast(T('Обед добавлен в тайминг', 'Lunch added') + (f ? ' · ' + f : '')); render(); },
+  addTiming: (el) => { const s = getShoot(el.dataset.s); const all = sortedTiming(s); const last = all[all.length - 1]; const m = last && mins(last.t) != null ? mins(last.t) + 30 : mins(s.call) ?? 600; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60), w: '' }); save(); render(); },
+  addLunch: (el) => { const s = getShoot(el.dataset.s); const a = mins(s.call) ?? 600; const d = durationH(s) * 60 || 480; const m = (Math.round((a + d / 2) / 30) * 30) % 1440; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60)) + ':' + pad(m % 60), w: T('Обед для команды', 'Team lunch') }); const f = teamFood(s); save(); toast(T('Обед добавлен в тайминг', 'Lunch added') + (f ? ' · ' + f : '')); render(); },
   tab: (el) => { location.hash = '#/p/' + el.dataset.s + '/' + (el.dataset.x || 'main'); },
   shareTeam: (el) => { const s = getShoot(el.dataset.s); shareSheet(T('Команде', 'To the team'), teamText(s)); },
   shareClientGuide: (el) => { const s = getShoot(el.dataset.s); const c = s.checklist.find((x) => /памятка|guide/i.test(x.text)); if (c) { c.done = true; save(); } shareSheet(T('Памятка клиенту', 'Client guide'), guideText(s)); },
@@ -896,9 +900,10 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('change', (ev) => {
   const el = ev.target;
   if (el.dataset.time) el.value = normTime(el.value);
-  if (el.dataset.b) { setPath(el.dataset.b, el.value); if (el.dataset.r) { clearTimeout(window._rt); window._rt = setTimeout(render, 250); } }
+  if (el.dataset.b) { setPath(el.dataset.b, el.value); if (el.dataset.r && !(el.dataset.time && document.activeElement === el)) { clearTimeout(window._rt); window._rt = setTimeout(render, 250); } }
   if (el.id === 'oDate' && ui.sheet) { keepOwnInputs(); render(); }
 });
+document.addEventListener('focusout', (ev) => { const el = ev.target; if (el.dataset && el.dataset.time && el.dataset.r) { clearTimeout(window._rt); window._rt = setTimeout(render, 250); } });
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Enter' && ev.target.dataset.enter) { ev.preventDefault(); A[ev.target.dataset.enter](ev.target); }
   if (ev.key === 'Escape' && ui.sheet) closeSheet();

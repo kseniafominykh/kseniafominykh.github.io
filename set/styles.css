@@ -132,7 +132,7 @@ select.inp { appearance: none; -webkit-appearance: none; background-image: linea
 .cal button.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
 .cal button.empty { visibility: hidden; }
 
-.tl { display: grid; grid-template-columns: 64px minmax(0,1fr) 36px; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.tl { display: grid; grid-template-columns: 96px minmax(0,1fr) 36px; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
 .tl:first-child { border-top: 0; }
 .tl input { min-height: 44px; }
 
@@ -191,3 +191,7 @@ select.inp { appearance: none; -webkit-appearance: none; background-image: linea
 .printarea.show .foot { margin-top: 14px; font-size: 11px; color: #6E6B75; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+input[type=time].inp, input[type=date].inp { -webkit-appearance: none; appearance: none; display: flex; align-items: center; text-align: left; line-height: 50px; }
+input[type=time].inp::-webkit-date-and-time-value, input[type=date].inp::-webkit-date-and-time-value { text-align: left; }
+.tl input[type=time].inp { padding: 0 10px; font-size: 15px; }
