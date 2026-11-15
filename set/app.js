@@ -1,0 +1,915 @@
+'use strict';
+/* SET — beta. All data lives on this device (localStorage). */
+const VERSION = '0.9 beta';
+const KEY = 'set.v1';
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+const num = (v) => Number(String(v ?? '').replace(/[^\d.]/g, '')) || 0;
+const money = (n) => String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const pad = (n) => String(n).padStart(2, '0');
+const isoOf = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const todayIso = () => isoOf(new Date());
+const parseIso = (s) => { const [y, m, d] = String(s || '').split('-').map(Number); return y ? new Date(y, m - 1, d) : null; };
+const mins = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || '').trim()); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+const normTime = (v) => { const d = String(v || '').replace(/\D/g, ''); if (!d) return ''; let h, m; if (d.length <= 2) { h = +d; m = 0; } else { h = +d.slice(0, d.length - 2); m = +d.slice(-2); } if (h > 23 || m > 59) return String(v); return pad(h) + ':' + pad(m); };
+const daysBetween = (a, b) => Math.round((parseIso(b) - parseIso(a)) / 864e5);
+const plural = (n, a, b, c) => { const k = n % 10, h = n % 100; return (k === 1 && h !== 11) ? a : (k >= 2 && k <= 4 && (h < 12 || h > 14)) ? b : c; };
+
+/* ---------- state ---------- */
+let S = load();
+const ui = { step: 1, cal: null, calSel: null, sheet: null, tab: 'main', filter: 'active', per: 'year', src: 'all', q: '', onb: null };
+
+function fresh() {
+  return {
+    v: 1,
+    lang: (navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en',
+    profile: { name: '', city: '', insta: '', roles: [], ownRole: '', ownSkill: '', skills: [], exp: '', rate: '', unit: 'смена', contact: 'Telegram', food: [], foodOther: '', onboarded: false },
+    people: [],
+    shoots: []
+  };
+}
+function load() {
+  try { const x = JSON.parse(localStorage.getItem(KEY)); if (x && x.v === 1) return Object.assign(fresh(), x); } catch (e) { /* ignore */ }
+  return fresh();
+}
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); }
+    catch (e) { toast(T('Не получилось сохранить: память телефона заполнена', 'Could not save: storage is full')); }
+  }, 120);
+}
+const T = (ru, en) => (S.lang === 'en' ? (en ?? ru) : ru);
+
+/* ---------- dictionaries ---------- */
+const MONTHS = { ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'], en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] };
+const MONTHS_N = { ru: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'], en: MONTHS.en };
+const MON_S = { ru: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'], en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] };
+const WD_S = { ru: ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] };
+const WD_L = { ru: ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'], en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
+const L = () => S.lang === 'en' ? 'en' : 'ru';
+function fmtDate(iso, o = {}) {
+  const d = parseIso(iso); if (!d) return T('без даты', 'no date');
+  const s = L() === 'en' ? MONTHS.en[d.getMonth()] + ' ' + d.getDate() : d.getDate() + ' ' + MONTHS.ru[d.getMonth()];
+  const wd = o.wd ? ', ' + WD_S[L()][d.getDay()] : '';
+  const y = o.year || d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '';
+  return s + y + wd;
+}
+function relDay(iso) {
+  const n = daysBetween(todayIso(), iso);
+  if (n === 0) return T('сегодня', 'today');
+  if (n === 1) return T('завтра', 'tomorrow');
+  if (n === -1) return T('вчера', 'yesterday');
+  if (n > 1) return T('через ' + n + ' ' + plural(n, 'день', 'дня', 'дней'), 'in ' + n + ' days');
+  return T(-n + ' ' + plural(-n, 'день', 'дня', 'дней') + ' назад', -n + ' days ago');
+}
+
+const GROUPS = [
+  { ru: 'Организация', en: 'Production', glow: 'pink', roles: [['producer', 'Продюсер', 'Producer', ['брифы', 'сметы', 'кастинг', 'локации', 'ведение клиента']], ['creative', 'Креативный директор', 'Creative director', ['концепция', 'мудборды', 'арт-дирекшн на площадке']], ['art', 'Арт-директор', 'Art director', ['визуальная концепция', 'контроль кадра', 'сет']], ['prodassist', 'Ассистент продюсера', 'Production assistant', ['логистика', 'закупки', 'встреча команды']], ['casting', 'Кастинг-директор', 'Casting director', ['модели', 'герои', 'лонг-листы']]] },
+  { ru: 'Камера и свет', en: 'Camera & light', glow: 'teal', roles: [['photo', 'Фотограф', 'Photographer', ['fashion', 'бьюти', 'предметка', 'портрет', 'репортаж', 'ретушь сам']], ['video', 'Видеограф', 'Videographer', ['рилсы', 'реклама', 'клипы', 'монтирую сам']], ['mobile', 'Мобилограф', 'Mobile creator', ['рилсы', 'сторис', 'контент на телефон']], ['light', 'Световик', 'Gaffer', ['импульсный свет', 'постоянный свет', 'свой свет']], ['photoassist', 'Ассистент фотографа', 'Photo assistant', ['свет', 'отражатели', 'бэкапы']], ['dit', 'Цифровой техник', 'Digital tech', ['съёмка в ноутбук', 'бэкапы', 'превью клиенту']], ['bts', 'Бэкстейдж', 'Behind the scenes', ['фото', 'видео', 'рилсы со съёмки']], ['drone', 'Дрон-оператор', 'Drone operator', ['съёмка с воздуха', 'свой дрон']]] },
+  { ru: 'Образ', en: 'Look', glow: 'pink', roles: [['stylist', 'Стилист', 'Stylist', ['подбор образов', 'аренда вещей', 'свой гардероб']], ['stylistassist', 'Ассистент стилиста', 'Stylist assistant', ['отпаривание', 'возврат вещей', 'переодевания']], ['mua', 'Визажист', 'Make-up artist', ['нюд', 'вечерний', 'графичный', 'грим для видео']], ['hair', 'Стилист по волосам', 'Hair stylist', ['укладки', 'плетения', 'парики']], ['nails', 'Мастер маникюра', 'Nail artist', ['нюд', 'дизайн', 'руки для крупных планов']]] },
+  { ru: 'В кадре', en: 'In frame', glow: 'lemon', roles: [['model', 'Модель', 'Model', ['fashion', 'бьюти', 'коммерция', 'рилсы', 'руки и детали']], ['actor', 'Актёр, актриса', 'Actor', ['реклама', 'короткий метр', 'говорю на камеру']], ['dancer', 'Танцор', 'Dancer', ['современный танец', 'хореография для клипов']], ['blogger', 'Блогер', 'Creator', ['свой блог', 'интеграции', 'говорю на камеру']], ['hero', 'Герой съёмки', 'Real person', ['не модель', 'эксперт', 'сотрудник бренда']]] },
+  { ru: 'Сет', en: 'Set', glow: 'cobalt', roles: [['setdesign', 'Сет-дизайнер', 'Set designer', ['декорации', 'фоны', 'строительство сета']], ['props', 'Реквизитор', 'Props', ['поиск реквизита', 'аренда', 'возврат']], ['florist', 'Флорист', 'Florist', ['композиции', 'инсталляции']], ['food', 'Фуд-стилист', 'Food stylist', ['еда в кадре', 'напитки']]] },
+  { ru: 'После съёмки', en: 'Post', glow: 'sky', roles: [['retouch', 'Ретушёр', 'Retoucher', ['бьюти-ретушь', 'fashion', 'предметка']], ['editor', 'Монтажёр', 'Editor', ['рилсы', 'реклама', 'субтитры']], ['color', 'Колорист', 'Colorist', ['цветокор видео', 'цвет фото']], ['motion', 'Моушн-дизайнер', 'Motion designer', ['титры', 'анимация', '3D']], ['sound', 'Звукорежиссёр', 'Sound', ['запись на площадке', 'сведение']]] },
+  { ru: 'Заказчик', en: 'Client', glow: 'pink', roles: [['brand', 'Бренд', 'Brand', ['лукбуки', 'маркетплейсы', 'рилсы', 'кампании']], ['agency', 'Агентство', 'Agency', ['реклама', 'SMM', 'ивенты']], ['client', 'Частный клиент', 'Private client', ['портрет', 'love story', 'семейная', 'для блога']]] }
+];
+const ROLE = {};
+GROUPS.forEach((g) => g.roles.forEach((r) => { ROLE[r[0]] = { id: r[0], ru: r[1], en: r[2], skills: r[3], glow: g.glow }; }));
+const roleName = (id) => (ROLE[id] ? (L() === 'en' ? ROLE[id].en : ROLE[id].ru) : (id || ''));
+const CLIENT_ROLES = ['brand', 'agency', 'client'];
+const FOOD = [['all', 'ем всё', 'eat everything'], ['nomeat', 'без мяса', 'no meat'], ['nofish', 'без рыбы', 'no fish'], ['gluten', 'без глютена', 'gluten-free'], ['lactose', 'без лактозы', 'lactose-free'], ['vegan', 'веган', 'vegan']];
+
+const KINDS = {
+  brand: { glow: 'pink', ru: 'Для бренда', en: 'For a brand', sub: ['Лукбук, каталог, кампания. Смета, ссылка для заказчика, права на фото', 'Lookbook, catalogue, campaign. Budget, client link, usage rights'] },
+  personal: { glow: 'lemon', ru: 'Частный клиент', en: 'Private client', sub: ['Портрет, love story, семейная. Памятка клиенту, предоплата', 'Portrait, love story, family. Client prep, deposit'] },
+  creative: { glow: 'sky', ru: 'Творческая · TFP', en: 'Creative · TFP', sub: ['Без бюджета. Договорённости, кто где публикует, делим аренду', 'No budget. Agreements, credits, split the studio'] },
+  custom: { glow: 'cobalt', ru: 'Своя', en: 'Custom', sub: ['Собери из блоков то, что нужно именно тебе', 'Build it from the blocks you need'] }
+};
+
+/* ---------- icons ---------- */
+const I = {
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l8-4 8 4-8 4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/></svg>',
+  people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.4 3.4-5 6.5-5s5.7 1.6 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.3.2 4 1.6 4.5 4"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  lock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+};
+
+/* ---------- shoot helpers ---------- */
+const getShoot = (id) => S.shoots.find((s) => s.id === id);
+const titleOf = (s) => [s.client, s.what].filter(Boolean).join(' · ') || T('Новая съёмка', 'New shoot');
+const durationH = (s) => { const a = mins(s.call), b = mins(s.end); return a != null && b != null && b > a ? (b - a) / 60 : 0; };
+const isPast = (s) => s.status === 'done' || (s.date && s.date < todayIso());
+const hasMeal = (s) => s.timing.some((x) => /обед|ланч|еда|перекус|lunch|meal|food/i.test(x.w));
+const sortByDate = (a, b) => (a.date || '9999').localeCompare(b.date || '9999') || (mins(a.call) || 0) - (mins(b.call) || 0);
+
+function newShoot(kind, o = {}) {
+  const s = {
+    id: uid(), src: 'set', kind, client: '', what: '', date: '', call: '10:00', end: '18:00', place: '', address: '', notes: '',
+    timing: [], team: [], looks: [], checklist: [],
+    budget: { lines: [], note: '' }, rights: '', deliver: '', retouch: '',
+    modules: { team: true, timing: true, looks: kind !== 'personal', budget: kind === 'brand' || kind === 'custom', print: true },
+    my: { role: S.profile.roles[0] || 'producer', fee: '', shifts: 1, paid: false, check: false, note: '' },
+    onset: { idx: 0 }, status: 'plan', created: Date.now()
+  };
+  const tl = (arr) => arr.map(([t, w]) => ({ id: uid(), t, w }));
+  const ck = (arr) => arr.map((text) => ({ id: uid(), text, done: false }));
+  if (kind === 'brand') {
+    s.call = '09:00'; s.end = '19:00';
+    s.timing = tl([['09:00', T('Сбор, кофе, распаковка вещей', 'Call, coffee, unpack')], ['09:30', T('Грим и волосы', 'Make-up and hair')], ['11:00', T('Образ 01', 'Look 01')], ['13:00', T('Обед', 'Lunch')], ['14:00', T('Образы дальше по списку', 'Looks continue')], ['18:30', T('Сбор вещей, возврат', 'Pack up, returns')], ['19:00', T('Конец, сдаём студию', 'Wrap, studio out')]]);
+    s.checklist = ck([T('Бриф от бренда', 'Brief from the brand'), T('Мудборд согласован', 'Moodboard approved'), T('Смета согласована', 'Budget approved'), T('Студия забронирована', 'Studio booked'), T('Модели подтвердили', 'Models confirmed'), T('Вещи у стилиста', 'Clothes with the stylist'), T('Права на фото и срок — договорились', 'Usage rights and term agreed'), T('Договор или акт', 'Contract or invoice')]);
+    s.budget.lines = [{ id: uid(), label: T('Студия', 'Studio'), sum: '' }, { id: uid(), label: T('Фотограф', 'Photographer'), sum: '' }, { id: uid(), label: T('Модели', 'Models'), sum: '' }, { id: uid(), label: T('Визажист', 'Make-up'), sum: '' }, { id: uid(), label: T('Стилист', 'Stylist'), sum: '' }, { id: uid(), label: T('Еда на площадку', 'Catering'), sum: '' }, { id: uid(), label: T('Ретушь', 'Retouching'), sum: '' }, { id: uid(), label: T('Продюсирование', 'Production fee'), sum: '' }];
+    s.retouch = T('40 кадров · 2 круга правок', '40 frames · 2 rounds');
+  } else if (kind === 'personal') {
+    s.call = '11:00'; s.end = '14:00';
+    s.timing = tl([['11:00', T('Мейк и волосы', 'Make-up and hair')], ['12:00', T('Съёмка', 'Shooting')], ['14:00', T('Конец', 'Wrap')]]);
+    s.checklist = ck([T('Предоплата получена', 'Deposit received'), T('Клиенту отправлена памятка «как подготовиться»', 'Prep guide sent to the client'), T('Образы обсудили', 'Outfits discussed'), T('Студия или место', 'Studio or location'), T('Сколько фото и когда — договорились', 'Number of photos and delivery agreed')]);
+    s.deliver = T('через 7 дней', 'in 7 days');
+  } else if (kind === 'creative') {
+    s.call = '12:00'; s.end = '16:00'; s.client = 'TFP';
+    s.timing = tl([['12:00', T('Сбор', 'Call')], ['12:30', T('Мейк', 'Make-up')], ['13:30', T('Съёмка', 'Shooting')], ['16:00', T('Конец', 'Wrap')]]);
+    s.checklist = ck([T('Мудборд на 5–6 кадров', 'Moodboard of 5–6 images'), T('Договорились, кто где публикует и отмечает', 'Agreed who posts where and credits'), T('Похожий уровень команды', 'Similar level across the team'), T('Аренду делим поровну', 'Studio cost split'), T('Когда отдаём кадры', 'When we share the photos')]);
+  }
+  Object.assign(s, o);
+  return s;
+}
+
+function hints(s) {
+  const out = [];
+  const h = durationH(s);
+  if (h > 5 && !hasMeal(s)) out.push({ text: T('Съёмка ' + Math.round(h) + ' ' + plural(Math.round(h), 'час', 'часа', 'часов') + ' — запланируй обед для команды. Кто что не ест — в карточках людей.', 'The shoot is ' + Math.round(h) + 'h long — plan lunch for the team.'), act: 'addLunch', label: T('Добавить обед', 'Add lunch') });
+  if (h > 10) out.push({ text: T('Больше 10 часов — это переработка. Заложи её в смету и предупреди команду.', 'Over 10 hours is overtime. Budget for it and warn the team.') });
+  if (!s.date) out.push({ text: T('Поставь дату — съёмка появится в календаре.', 'Set a date so it shows in the calendar.'), act: 'tab', arg: 'main', label: T('Указать', 'Set') });
+  else if (!s.address && s.src === 'set') out.push({ text: T('Добавь адрес — его получит вся команда.', 'Add the address — the whole team gets it.'), act: 'tab', arg: 'main', label: T('Добавить', 'Add') });
+  const noCall = s.team.filter((m) => !m.call).length;
+  if (noCall) out.push({ text: T('У ' + noCall + ' ' + plural(noCall, 'человека', 'человек', 'человек') + ' нет времени сбора.', noCall + ' people have no call time.'), act: 'tab', arg: 'team', label: T('Команда', 'Team') });
+  const noModel = s.modules.looks ? s.looks.filter((l) => !l.model).length : 0;
+  if (noModel) out.push({ text: T('В ' + noModel + ' ' + plural(noModel, 'образе', 'образах', 'образах') + ' не указана модель.', noModel + ' looks have no model.'), act: 'tab', arg: 'looks', label: T('Образы', 'Looks') });
+  if (s.date && daysBetween(todayIso(), s.date) <= 2 && daysBetween(todayIso(), s.date) >= 0) {
+    const notYes = s.team.filter((m) => m.status !== 'yes').length;
+    if (notYes) out.push({ text: T('Съёмка ' + relDay(s.date) + ', а подтвердили ещё не все: ждём ' + notYes + ' из ' + s.team.length + '.', 'The shoot is ' + relDay(s.date) + ' and ' + notYes + ' people have not confirmed.'), act: 'tab', arg: 'team', label: T('Проверить', 'Check') });
+  }
+  if (s.kind === 'creative' && s.checklist.some((c) => /публикует|posts/i.test(c.text) && !c.done)) out.push({ text: T('Для TFP главное — заранее договориться, кто где публикует кадры и как отмечает команду.', 'For TFP, agree in advance who posts where and how the team is credited.') });
+  if (s.kind === 'personal' && s.checklist.some((c) => /памятка|guide/i.test(c.text) && !c.done)) out.push({ text: T('Отправь клиенту памятку: что взять, как подготовиться, когда будут фото.', 'Send the client a prep guide.'), act: 'shareClientGuide', label: T('Отправить', 'Send') });
+  return out;
+}
+
+/* ---------- toast & share ---------- */
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); }
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast(T('Скопировано', 'Copied')); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(T('Скопировано', 'Copied')); } catch (e2) { toast(T('Не получилось скопировать', 'Could not copy')); } ta.remove(); }
+}
+function shareSheet(title, text) { ui.sheet = { type: 'share', title, text }; render(); }
+
+function teamText(s) {
+  const lines = [];
+  lines.push('«' + titleOf(s) + '»');
+  if (s.date) lines.push(fmtDate(s.date, { wd: true }) + (s.call ? ' · ' + T('сбор', 'call') + ' ' + s.call : '') + (s.end ? ' · ' + T('до', 'till') + ' ' + s.end : ''));
+  if (s.place || s.address) lines.push([s.place, s.address].filter(Boolean).join(', '));
+  if (s.timing.length) { lines.push(''); lines.push(T('Тайминг', 'Schedule') + ':'); s.timing.forEach((x) => lines.push(x.t + ' — ' + x.w)); }
+  if (s.team.length) { lines.push(''); lines.push(T('Команда', 'Team') + ':'); s.team.forEach((m) => lines.push(m.name + ' — ' + roleName(m.role) + (m.call ? ', ' + T('сбор', 'call') + ' ' + m.call : ''))); }
+  if (s.modules.looks && s.looks.length) { lines.push(''); lines.push(T('Образы', 'Looks') + ':'); s.looks.forEach((l, i) => lines.push(pad(i + 1) + ' ' + (l.name || '') + (l.model ? ' — ' + l.model : '') + (l.mua ? ', ' + T('мейк', 'MUA') + ': ' + l.mua : ''))); }
+  const food = teamFood(s); if (food) { lines.push(''); lines.push(T('Еда', 'Food') + ': ' + food); }
+  lines.push(''); lines.push(T('Собрано в SET', 'Made with SET'));
+  return lines.join('\n');
+}
+function personText(s, m) {
+  const first = (m.name || '').split(' ')[0];
+  return T('Привет' + (first ? ', ' + first : '') + '! Зову тебя на съёмку «' + titleOf(s) + '»' + (m.role ? ' — ' + (roleName(m.role) || '').toLowerCase() : '') + ': ' + (s.date ? fmtDate(s.date, { wd: true }) : 'дата скоро') + (m.call || s.call ? ', сбор в ' + (m.call || s.call) : '') + (s.address ? ', ' + s.address : '') + '.' + (m.rate ? ' Ставка ' + money(num(m.rate)) + ' ₽.' : '') + ' Сможешь?',
+    'Hi' + (first ? ' ' + first : '') + '! Inviting you as ' + roleName(m.role) + ' for “' + titleOf(s) + '”: ' + (s.date ? fmtDate(s.date, { wd: true }) : 'date tbc') + (m.call || s.call ? ', call ' + (m.call || s.call) : '') + (s.address ? ', ' + s.address : '') + '.' + (m.rate ? ' Rate ' + money(num(m.rate)) + '.' : '') + ' Are you in?');
+}
+function guideText(s) {
+  return T('Как подготовиться к съёмке «' + titleOf(s) + '»\n\n' + (s.date ? 'Когда: ' + fmtDate(s.date, { wd: true }) + ', ' + s.call + '\n' : '') + (s.address ? 'Где: ' + [s.place, s.address].filter(Boolean).join(', ') + '\n' : '') + '\n— Высыпайтесь накануне, пейте воду\n— Возьмите 2–3 образа на вешалках, обувь и украшения\n— Ногти и брови — за пару дней до съёмки\n— Приходите с чистым лицом, если работает визажист\n' + (s.deliver ? '\nФото будут ' + s.deliver + '.' : '') + '\n\nДо встречи!',
+    'How to prepare for “' + titleOf(s) + '”\n\n' + (s.date ? 'When: ' + fmtDate(s.date, { wd: true }) + ', ' + s.call + '\n' : '') + (s.address ? 'Where: ' + s.address + '\n' : '') + '\n— Sleep well, drink water\n— Bring 2–3 outfits on hangers, shoes and jewellery\n— Nails and brows a couple of days before\n— Come with a clean face if there is a make-up artist\n\nSee you!');
+}
+function teamFood(s) {
+  const tags = {};
+  s.team.forEach((m) => { const p = S.people.find((x) => x.id === m.pid); (p?.food || []).filter((f) => f !== 'all').forEach((f) => { tags[f] = (tags[f] || []).concat(m.name); }); });
+  if (S.profile.food.length) S.profile.food.filter((f) => f !== 'all').forEach((f) => { tags[f] = (tags[f] || []).concat(S.profile.name || T('я', 'me')); });
+  return Object.keys(tags).map((k) => { const f = FOOD.find((x) => x[0] === k); return (f ? (L() === 'en' ? f[2] : f[1]) : k) + ' — ' + tags[k].join(', '); }).join('; ');
+}
+
+/* ---------- path binding ---------- */
+// data-b="shoot:ID.field" | "shoot:ID.timing:ROWID.t" | "profile.name" | "person:ID.name"
+function resolve(path) {
+  const parts = path.split('.');
+  let obj = null;
+  const head = parts.shift();
+  if (head === 'profile') obj = S.profile;
+  else if (head.startsWith('shoot:')) obj = getShoot(head.slice(6));
+  else if (head.startsWith('person:')) obj = S.people.find((p) => p.id === head.slice(7));
+  else if (head === 'ui') obj = ui;
+  while (obj && parts.length > 1) {
+    const p = parts.shift();
+    if (p.includes(':')) { const [arr, id] = p.split(':'); obj = (obj[arr] || []).find((x) => x.id === id); }
+    else obj = obj[p];
+  }
+  return obj ? [obj, parts[0]] : [null, null];
+}
+function setPath(path, value) { const [o, k] = resolve(path); if (o) { o[k] = value; if (path !== 'ui.q') save(); } }
+
+/* ---------- layout pieces ---------- */
+function nav(active) {
+  const a = (href, key, icon, label) => '<a href="' + href + '"' + (active === key ? ' aria-current="page"' : '') + '>' + icon + label + '</a>';
+  return '<nav class="nav" aria-label="' + T('Главное меню', 'Main menu') + '">' + a('#/today', 'today', I.sun, T('Сегодня', 'Today')) + a('#/calendar', 'calendar', I.cal, T('Календарь', 'Calendar')) +
+    '<a href="#/new" class="plus" aria-label="' + T('Новая съёмка', 'New shoot') + '">' + I.plus + '</a>' + a('#/projects', 'projects', I.layers, T('Проекты', 'Projects')) + a('#/people', 'people', I.people, T('Люди', 'People')) + '</nav>';
+}
+const backBtn = (href) => '<a class="iconbtn" href="' + href + '" aria-label="' + T('Назад', 'Back') + '">' + I.back + '</a>';
+const initials = (n) => (String(n || '?').trim()[0] || '?').toUpperCase();
+const chip = (label, pressed, act, arg, cls = '') => '<button class="chip ' + cls + '" aria-pressed="' + (pressed ? 'true' : 'false') + '" data-a="' + act + '" data-x="' + esc(arg) + '">' + esc(label) + '</button>';
+const inp = (b, val, o = {}) => o.type === 'time' ? '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" placeholder="09:00" data-b="' + esc(b) + '" value="' + esc(val) + '"' + (o.r ? ' data-r="1"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + (o.style ? ' style="' + o.style + '"' : '') + '>' : '<input class="inp' + (o.mono ? ' mono' : '') + (o.cls ? ' ' + o.cls : '') + '" data-b="' + esc(b) + '" value="' + esc(val) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.type ? ' type="' + o.type + '"' : '') + (o.num ? ' inputmode="numeric"' : '') + (o.r ? ' data-r="1"' : '') + (o.aria ? ' aria-label="' + esc(o.aria) + '"' : '') + '>';
+const field = (label, html) => '<label class="f">' + esc(label) + html + '</label>';
+const sw = (label, sub, on, act, arg) => '<button class="switch" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" data-a="' + act + '" data-x="' + esc(arg || '') + '"><span class="col" style="gap:2px"><span style="font-weight:500">' + esc(label) + '</span>' + (sub ? '<span class="tiny muted">' + esc(sub) + '</span>' : '') + '</span><span class="track"><i></i></span></button>';
+
+/* ========== VIEWS ========== */
+
+/* --- onboarding --- */
+function vWelcome() {
+  const p = S.profile;
+  const o = ui.onb || (ui.onb = { step: 1 });
+  const clientOnly = p.roles.length > 0 && !p.ownRole && p.roles.every((r) => CLIENT_ROLES.includes(r));
+  const steps = clientOnly ? [1, 4] : [1, 2, 3, 4];
+  const idx = steps.indexOf(o.step);
+  const done = o.step === 5;
+  let h = '<div class="screen has-cta">';
+  if (!done) {
+    h += '<div class="top"><span class="logo">set</span><span class="kicker">' + T('шаг ' + (idx + 1) + ' из ' + steps.length, 'step ' + (idx + 1) + ' of ' + steps.length) + '</span></div>';
+    h += '<div class="progress" style="grid-template-columns:repeat(' + steps.length + ',1fr)">' + steps.map((s, i) => '<span class="' + (i <= idx ? 'on' : '') + '"></span>').join('') + '</div>';
+  }
+  if (o.step === 1) {
+    h += '<div class="chips">' + chip('Русский', S.lang === 'ru', 'lang', 'ru', 'sm') + chip('English', S.lang === 'en', 'lang', 'en', 'sm') + '</div>';
+    h += '<h1>' + T('Давай<br>знакомиться', 'Nice to<br>meet you') + '</h1><p class="muted" style="margin:0">' + T('Заполнишь один раз — дальше всё подставится само', 'Fill this in once — the rest fills itself in') + '</p>';
+    h += '<div class="grid2">' + field(T('Имя', 'Name'), inp('profile.name', p.name, { ph: T('Как к тебе обращаться', 'Your name') })) + field(T('Город', 'City'), inp('profile.city', p.city, { ph: T('Казань', 'City') })) + '</div>';
+    h += '<h2 style="margin-top:6px">' + T('Кто ты на съёмке?', 'What do you do on set?') + '</h2><span class="small muted pad4">' + T('Можно несколько', 'Pick as many as you like') + '</span>';
+    GROUPS.forEach((g) => {
+      h += '<div class="col"><span class="tiny muted pad4" style="font-weight:600;letter-spacing:.06em;text-transform:uppercase">' + (L() === 'en' ? g.en : g.ru) + '</span><div class="chips">' +
+        g.roles.map((r) => chip(L() === 'en' ? r[2] : r[1], p.roles.includes(r[0]), 'toggleRole', r[0])).join('') + '</div></div>';
+    });
+    h += inp('profile.ownRole', p.ownRole, { ph: T('Нет твоей роли? Напиши свою', 'Not listed? Type your role'), cls: 'dashed', r: true });
+    if (p.ownRole) h += '<span class="small muted pad4">' + T('Добавим «' + esc(p.ownRole) + '» как твою роль. На следующем шаге расскажешь, что делаешь.', 'We’ll add “' + esc(p.ownRole) + '” as your role.') + '</span>';
+    if (clientOnly) h += '<div class="card glow-pink"><b>' + T('Заказчику — всего 2 шага', 'Clients: just 2 steps') + '</b><span class="small">' + T('Навыки и ставки не нужны.', 'No skills or rates needed.') + '</span></div>';
+  }
+  if (o.step === 2) {
+    h += '<h1>' + T('Что<br>умеешь', 'What you<br>do best') + '</h1><p class="muted" style="margin:0">' + T('Это попадёт в твою карточку', 'This goes on your card') + '</p>';
+    p.roles.filter((r) => !CLIENT_ROLES.includes(r)).forEach((r) => {
+      const R = ROLE[r];
+      h += '<div class="card glow-' + R.glow + '"><h3>' + esc(roleName(r)) + '</h3><div class="chips">' + R.skills.map((sk) => chip(sk, p.skills.includes(r + ':' + sk), 'toggleSkill', r + ':' + sk, 'sm')).join('') + '</div></div>';
+    });
+    if (p.ownRole) h += '<div class="card"><h3>' + esc(p.ownRole) + '</h3>' + inp('profile.ownSkill', p.ownSkill, { ph: T('Что делаешь на съёмке? Например: свет для предметки', 'What do you do on set?') }) + '<span class="tiny muted">' + T('Новые роли мы смотрим и добавляем в общий список', 'We review new roles and add them for everyone') + '</span></div>';
+    if (!p.roles.length && !p.ownRole) h += '<div class="card">' + T('Вернись на шаг назад и выбери, кто ты на съёмке', 'Go back and pick your role') + '</div>';
+    h += '<h3 class="pad4">' + T('Опыт', 'Experience') + '</h3><div class="chips">' + [T('до года', '< 1 year'), T('1–3 года', '1–3 years'), T('3+ лет', '3+ years')].map((x) => chip(x, p.exp === x, 'setProfile', 'exp|' + x)).join('') + '</div>';
+  }
+  if (o.step === 3) {
+    h += '<h1>' + T('Ставка<br>и связь', 'Rate &amp;<br>contact') + '</h1><p class="muted" style="margin:0">' + T('Ставку видишь только ты. Подставим её, когда тебя зовут', 'Only you see your rate') + '</p>';
+    h += '<div class="card glow-lemon"><label class="f">' + T('Ставка от, ₽', 'Rate from') + inp('profile.rate', p.rate, { mono: true, num: true, ph: '10 000' }) + '</label><div class="chips">' + [['смена', T('за смену', 'per day')], ['час', T('за час', 'per hour')], ['проект', T('за проект', 'per project')]].map((u) => chip(u[1], p.unit === u[0], 'setProfile', 'unit|' + u[0], 'sm')).join('') + '</div></div>';
+    h += '<h3 class="pad4">' + T('Как с тобой связаться', 'Preferred contact') + '</h3><div class="chips">' + ['Telegram', 'WhatsApp', T('Звонок', 'Call')].map((x) => chip(x, p.contact === x, 'setProfile', 'contact|' + x)).join('') + '</div>';
+    h += field('Instagram', inp('profile.insta', p.insta, { ph: '@nick' }));
+  }
+  if (o.step === 4) {
+    h += '<h1>' + T('На<br>площадке', 'On<br>set') + '</h1><p class="muted" style="margin:0">' + T('Мелочи, из-за которых день проходит спокойно', 'Small things that keep the day calm') + '</p>';
+    h += '<div class="card glow-lemon"><h3>' + T('Что не ешь', 'Food') + '</h3><span class="small">' + T('Учтём, когда закажем еду на долгую съёмку', 'For catering on long shoots') + '</span><div class="chips">' + FOOD.map((f) => chip(L() === 'en' ? f[2] : f[1], p.food.includes(f[0]), 'toggleFood', f[0], 'sm')).join('') + '</div>' + inp('profile.foodOther', p.foodOther, { ph: T('Своё: например, без орехов', 'Other: e.g. no nuts') }) + '</div>';
+  }
+  if (done) {
+    const rl = p.roles.map(roleName).concat(p.ownRole ? [p.ownRole] : []).join(' · ');
+    h += '<div style="padding-top:24px" class="col"><h1>' + T('Готово', 'Done') + (p.name ? ',<br>' + esc(p.name) : '!') + '</h1><span class="muted">' + T('Твоя карточка', 'Your card') + '</span></div>';
+    h += '<div class="card glow-' + (ROLE[p.roles[0]]?.glow || 'pink') + '" style="border-radius:30px;padding:22px"><div class="row between"><span class="avatar" style="width:72px;height:72px;border-radius:36px;font-size:30px">' + esc(initials(p.name)) + '</span>' + (p.exp ? '<span class="badge">' + esc(T('опыт ', 'exp. ') + p.exp) + '</span>' : '') + '</div><span class="h1" style="font-size:34px">' + esc(p.name || T('Твоё имя', 'Your name')) + '</span><span>' + esc(rl || T('Роль не выбрана', 'No role yet')) + '</span>' + (p.insta ? '<b class="small">' + esc(p.insta.startsWith('@') ? p.insta : '@' + p.insta) + '</b>' : '') + '</div>';
+  }
+  h += '</div>';
+  h += '<div class="cta nonav">';
+  if (done) h += '<button class="btn big" data-a="finishOnb">' + T('В приложение', 'Open SET') + '</button>';
+  else {
+    if (idx > 0) h += '<button class="iconbtn" style="width:60px;height:60px;border-radius:30px" data-a="onbBack" aria-label="' + T('Назад', 'Back') + '">' + I.back + '</button>';
+    h += '<button class="btn big grow" data-a="onbNext">' + (o.step === 4 ? T('Готово', 'Done') : T('Дальше', 'Next')) + '</button>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* --- today --- */
+function vToday() {
+  const t = todayIso();
+  const up = S.shoots.filter((s) => s.date && s.date >= t && s.status !== 'done').sort(sortByDate);
+  const todays = up.filter((s) => s.date === t);
+  const nextS = up[0];
+  const d = new Date();
+  let h = '<div class="screen">';
+  h += '<div class="top"><span class="logo">set</span><div class="row"><a class="iconbtn" href="#/settings" aria-label="' + T('Настройки', 'Settings') + '">' + I.gear + '</a><a class="avatar" href="#/me" aria-label="' + T('Профиль и доход', 'Profile and income') + '">' + esc(initials(S.profile.name)) + '</a></div></div>';
+  h += '<div class="col pad4" style="gap:4px"><span class="kicker">' + esc(WD_L[L()][d.getDay()]) + ', ' + fmtDate(t) + '</span><h1>' + (todays.length ? T('Сегодня<br>съёмка', 'Shoot<br>today') : (nextS ? T('Сегодня<br>спокойно', 'A calm<br>day') : T('Чистый<br>лист', 'A blank<br>page'))) + '</h1></div>';
+  if (!S.shoots.length) {
+    h += '<div class="card glow-pink" style="padding:22px"><h2>' + T('Первая съёмка', 'Your first shoot') + '</h2><span>' + T('Создай проект — тайминг, команда и образы соберутся в одном месте.', 'Create a project — schedule, team and looks in one place.') + '</span><a class="btn" href="#/new">' + T('Новая съёмка', 'New shoot') + '</a><button class="textbtn" data-a="demo">' + T('Сначала посмотреть на примере', 'Explore an example first') + '</button></div>';
+  }
+  todays.forEach((s) => {
+    if (s.src === 'own') { h += '<a class="card dashed" href="#/own/' + s.id + '" style="text-decoration:none;color:inherit"><span class="kicker">' + T('Сегодня', 'Today') + ' · ' + T('сбор', 'call') + ' ' + esc(s.call) + ' · ' + T('не через SET', 'outside SET') + '</span><h2>' + esc(titleOf(s)) + '</h2></a>'; return; }
+    h += '<div class="card glow-lemon" style="padding:22px"><span class="kicker">' + T('Сегодня', 'Today') + ' · ' + T('сбор', 'call') + ' ' + esc(s.call) + '</span><h2>' + esc(titleOf(s)) + '</h2><span class="small">' + esc([s.place, s.address].filter(Boolean).join(', ')) + '</span><div class="row"><a class="btn grow" href="#/p/' + s.id + '/onset">' + T('Режим площадки', 'On-set mode') + '</a><a class="btn ghost" href="#/p/' + s.id + '/print">' + T('Лист', 'Sheet') + '</a></div></div>';
+  });
+  if (nextS && nextS.date !== t) {
+    const dd = parseIso(nextS.date);
+    h += '<a class="card ' + (nextS.src === 'own' ? 'dashed' : 'glow-pink') + '" href="' + (nextS.src === 'own' ? '#/own/' : '#/p/') + nextS.id + '" style="text-decoration:none;color:inherit;padding:22px"><div class="row between"><span class="kicker">' + T('Следующая', 'Next') + ' · ' + relDay(nextS.date) + '</span><span class="badge">' + esc(L() === 'en' ? KINDS[nextS.kind]?.en || '' : KINDS[nextS.kind]?.ru || '') + '</span></div><div class="row" style="align-items:flex-end;gap:14px"><span class="big-date" style="font-size:64px">' + dd.getDate() + '</span><span class="big-date" style="font-size:30px;padding-bottom:6px">' + MON_S[L()][dd.getMonth()].toUpperCase() + '</span></div><h2>' + esc(titleOf(nextS)) + '</h2><span class="small">' + T('сбор', 'call') + ' ' + esc(nextS.call) + (nextS.place ? ' · ' + esc(nextS.place) : '') + ' · ' + nextS.team.length + ' ' + T(plural(nextS.team.length, 'человек', 'человека', 'человек'), 'people') + '</span></a>';
+  }
+  const all = up.slice(0, 4).flatMap((s) => hints(s).map((x) => ({ ...x, s })));
+  if (all.length) {
+    h += '<h3 class="pad4">' + T('Сейчас важно', 'Worth doing now') + '</h3>';
+    all.slice(0, 3).forEach((x) => { h += '<div class="hint"><span class="dot"></span><div class="col grow" style="gap:6px"><span class="tiny muted">' + esc(titleOf(x.s)) + '</span><span>' + esc(x.text) + '</span></div>' + (x.act ? '<button class="btn sm soft" data-a="' + x.act + '" data-x="' + esc(x.arg || '') + '" data-s="' + x.s.id + '">' + esc(x.label) + '</button>' : '<a class="btn sm soft" href="#/p/' + x.s.id + '">' + T('Открыть', 'Open') + '</a>') + '</div>'; });
+  }
+  if (up.length > 1) {
+    h += '<h3 class="pad4">' + T('Дальше', 'Coming up') + '</h3><div class="card tight">' + up.slice(nextS && nextS.date !== t ? 1 : 0).filter((s) => s.date !== t).slice(0, 5).map((s) => '<a class="li" href="' + (s.src === 'own' ? '#/own/' : '#/p/') + s.id + '"><span class="mono small" style="min-width:58px">' + esc(fmtDate(s.date).replace(/ \d{4}$/, '')) + '</span><span class="grow"><b style="font-weight:600">' + esc(titleOf(s)) + '</b><br><span class="tiny muted">' + T('сбор', 'call') + ' ' + esc(s.call) + '</span></span>' + I.next.replace('<svg', '<svg width="18" height="18"') + '</a>').join('') + '</div>';
+  }
+  h += '</div>' + nav('today');
+  return h;
+}
+
+/* --- projects list --- */
+function vProjects() {
+  const t = todayIso();
+  const list = S.shoots.filter((s) => s.src === 'set');
+  const active = list.filter((s) => !isPast(s)).sort(sortByDate);
+  const past = list.filter((s) => isPast(s)).sort((a, b) => sortByDate(b, a));
+  const shown = ui.filter === 'past' ? past : active;
+  let h = '<div class="screen"><div class="top"><span class="logo">set</span><a class="avatar" href="#/me">' + esc(initials(S.profile.name)) + '</a></div><h1 class="pad4">' + T('Проекты', 'Projects') + '</h1>';
+  h += '<div class="chips">' + chip(T('Впереди', 'Upcoming') + ' · ' + active.length, ui.filter !== 'past', 'setUi', 'filter|active') + chip(T('Прошли', 'Past') + ' · ' + past.length, ui.filter === 'past', 'setUi', 'filter|past') + '</div>';
+  if (!shown.length) h += '<div class="empty">' + (ui.filter === 'past' ? T('Здесь будут прошедшие съёмки', 'Past shoots will appear here') : T('Пока пусто. Нажми «+» внизу.', 'Nothing yet. Tap “+” below.')) + '</div>';
+  shown.forEach((s) => {
+    const dd = parseIso(s.date);
+    h += '<a class="card glow-' + (KINDS[s.kind]?.glow || 'pink') + '" href="#/p/' + s.id + '" style="text-decoration:none;color:inherit;flex-direction:row;gap:14px;align-items:center"><span class="col" style="gap:0;min-width:54px">' + (dd ? '<span class="big-date" style="font-size:40px">' + dd.getDate() + '</span><span class="tiny">' + MON_S[L()][dd.getMonth()] + '</span>' : '<span class="tiny muted">' + T('без даты', 'no date') + '</span>') + '</span><span class="col grow" style="gap:4px"><b style="font-size:16px;font-weight:600">' + esc(titleOf(s)) + '</b><span class="tiny">' + esc(L() === 'en' ? KINDS[s.kind]?.en : KINDS[s.kind]?.ru) + ' · ' + s.team.length + ' ' + T(plural(s.team.length, 'человек', 'человека', 'человек'), 'people') + (s.date && s.date >= t ? ' · ' + relDay(s.date) : '') + '</span></span>' + (s.status === 'done' ? '<span class="badge ok">' + T('сдано', 'done') + '</span>' : '') + '</a>';
+  });
+  h += '</div>' + nav('projects');
+  return h;
+}
+
+/* --- new shoot --- */
+function vNew() {
+  const n = ui.newKind;
+  let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span></div>';
+  h += '<h1 class="pad4">' + T('Что<br>снимаем?', 'What are<br>we shooting?') + '</h1>';
+  Object.keys(KINDS).forEach((k) => {
+    const K = KINDS[k];
+    h += '<button class="card glow-' + K.glow + '" data-a="setUi" data-x="newKind|' + k + '" aria-pressed="' + (n === k) + '" style="text-align:left;border:2px solid ' + (n === k ? 'var(--ink)' : 'transparent') + '"><div class="row between"><h2>' + esc(L() === 'en' ? K.en : K.ru) + '</h2>' + (n === k ? '<span class="check on">✓</span>' : '') + '</div><span class="small">' + esc(K.sub[L() === 'en' ? 1 : 0]) + '</span></button>';
+  });
+  if (n === 'custom') {
+    const m = ui.newMods || (ui.newMods = { team: true, timing: true, looks: true, budget: false, print: true });
+    h += '<div class="card tight">' + [['timing', T('Тайминг', 'Schedule')], ['team', T('Команда', 'Team')], ['looks', T('Образы', 'Looks')], ['budget', T('Смета', 'Budget')], ['print', T('Распечатка', 'Print sheet')]].map(([k, l]) => sw(l, '', m[k], 'toggleNewMod', k)).join('') + '</div>';
+  }
+  if (n) {
+    h += '<div class="card"><div class="grid2">' + field(n === 'personal' ? T('Клиент', 'Client') : n === 'creative' ? T('Название', 'Title') : T('Бренд / клиент', 'Brand / client'), '<input class="inp" id="nfClient" placeholder="' + (n === 'personal' ? T('Анна К.', 'Anna K.') : n === 'creative' ? 'TFP' : T('Марта', 'Brand')) + '" value="' + (n === 'creative' ? 'TFP' : '') + '">') + field(T('Что снимаем', 'What'), '<input class="inp" id="nfWhat" placeholder="' + (n === 'personal' ? T('портрет', 'portrait') : T('лукбук', 'lookbook')) + '">') + '</div>' +
+      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="nfDate">') + field(T('Сбор', 'Call time'), '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" id="nfCall" value="' + ({ brand: '09:00', personal: '11:00', creative: '12:00' }[n] || '10:00') + '">') + '</div></div>';
+  }
+  h += '</div><div class="cta nonav"><button class="btn big" data-a="createShoot"' + (n ? '' : ' disabled') + '>' + (n ? T('Создать', 'Create') : T('Выбери формат', 'Pick a format')) + '</button></div>';
+  return h;
+}
+
+/* --- project --- */
+function vProject(id, tab) {
+  const s = getShoot(id);
+  if (!s) return vNotFound();
+  if (s.src === 'own') { location.hash = '#/me'; return ''; }
+  tab = tab || 'main';
+  const tabs = [['main', T('Главное', 'Overview')]];
+  if (s.modules.timing) tabs.push(['timing', T('Тайминг', 'Schedule')]);
+  if (s.modules.team) tabs.push(['team', T('Команда', 'Team') + ' · ' + s.team.length]);
+  if (s.modules.looks) tabs.push(['looks', T('Образы', 'Looks') + ' · ' + s.looks.length]);
+  if (s.modules.budget) tabs.push(['budget', T('Смета', 'Budget')]);
+  let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/projects') + '<span class="kicker">' + esc(L() === 'en' ? KINDS[s.kind]?.en : KINDS[s.kind]?.ru) + '</span><button class="iconbtn" data-a="shootMenu" data-s="' + s.id + '" aria-label="' + T('Ещё', 'More') + '">⋯</button></div>';
+  h += '<div class="col pad4" style="gap:4px"><span class="kicker">' + (s.date ? fmtDate(s.date, { wd: true }) + ' · ' + relDay(s.date) : T('дата не выбрана', 'no date yet')) + '</span><h1 style="font-size:40px">' + esc(titleOf(s)) + '</h1></div>';
+  h += '<div class="seg">' + tabs.map(([k, l]) => chip(l, tab === k, 'go', '#/p/' + s.id + '/' + k)).join('') + '</div>';
+  if (tab === 'main') h += pMain(s);
+  if (tab === 'timing') h += pTiming(s);
+  if (tab === 'team') h += pTeam(s);
+  if (tab === 'looks') h += pLooks(s);
+  if (tab === 'budget') h += pBudget(s);
+  h += '</div>';
+  h += '<div class="cta"><button class="btn big grow" data-a="shareTeam" data-s="' + s.id + '">' + T('Отправить команде', 'Send to the team') + '</button>' + (s.modules.print ? '<a class="btn ghost" style="min-height:60px;border-radius:26px" href="#/p/' + s.id + '/print">' + T('Лист', 'Sheet') + '</a>' : '') + '</div>';
+  h += nav('projects');
+  return h;
+}
+function pMain(s) {
+  const b = 'shoot:' + s.id;
+  let h = '';
+  const hs = hints(s);
+  if (hs.length) {
+    hs.slice(0, 2).forEach((x) => { h += '<div class="hint"><span class="dot"></span><span class="grow">' + esc(x.text) + '</span>' + (x.act && x.act !== 'tab' ? '<button class="btn sm soft" data-a="' + x.act + '" data-x="' + esc(x.arg || '') + '" data-s="' + s.id + '">' + esc(x.label) + '</button>' : x.act === 'tab' && x.arg !== 'main' ? '<button class="btn sm soft" data-a="go" data-x="#/p/' + s.id + '/' + x.arg + '">' + esc(x.label) + '</button>' : '') + '</div>'; });
+    if (hs.length > 2) h += '<span class="tiny muted pad4">' + T('Ещё ' + (hs.length - 2) + ' — появятся, когда закроешь эти', (hs.length - 2) + ' more after these') + '</span>';
+  }
+  h += '<div class="card"><div class="grid2">' + field(s.kind === 'personal' ? T('Клиент', 'Client') : T('Бренд / клиент', 'Brand / client'), inp(b + '.client', s.client, { r: true })) + field(T('Что снимаем', 'What'), inp(b + '.what', s.what, { r: true })) + '</div>' +
+    field(T('Дата', 'Date'), inp(b + '.date', s.date, { type: 'date', r: true })) + '<div class="grid2">' + field(T('Сбор', 'Call'), inp(b + '.call', s.call, { type: 'time', r: true })) + field(T('Конец', 'Wrap'), inp(b + '.end', s.end, { type: 'time', r: true })) + '</div>' +
+    field(T('Место', 'Venue'), inp(b + '.place', s.place, { ph: T('Студия, локация', 'Studio, location') })) + field(T('Адрес', 'Address'), inp(b + '.address', s.address, { ph: T('Улица, дом, как пройти', 'Street, how to get in'), r: true })) + '</div>';
+  if (s.checklist.length || true) {
+    const dn = s.checklist.filter((c) => c.done).length;
+    h += '<div class="row between pad4"><h3>' + T('Подготовка', 'Prep') + '</h3><span class="small muted mono">' + dn + '/' + s.checklist.length + '</span></div><div class="card tight">';
+    s.checklist.forEach((c) => { h += '<div class="li"><button class="check ' + (c.done ? 'on' : '') + '" data-a="toggleCheck" data-s="' + s.id + '" data-x="' + c.id + '" aria-label="' + esc(c.text) + '" aria-pressed="' + c.done + '">' + (c.done ? '✓' : '') + '</button><span class="grow ' + (c.done ? 'strike' : '') + '">' + esc(c.text) + '</span><button class="textbtn" data-a="delRow" data-s="' + s.id + '" data-x="checklist|' + c.id + '" aria-label="' + T('Удалить', 'Delete') + '">' + I.x.replace('<svg', '<svg width="16" height="16"') + '</button></div>'; });
+    h += '<div class="li"><input class="inp" id="newCheck" placeholder="' + T('+ Своё дело', '+ Add a task') + '" style="background:transparent;padding:0" data-enter="addCheck" data-s="' + s.id + '"><button class="btn sm soft" data-a="addCheck" data-s="' + s.id + '">' + T('Добавить', 'Add') + '</button></div></div>';
+  }
+  if (s.kind === 'brand' || s.kind === 'personal') {
+    h += '<div class="card glow-sky"><h3>' + T('Договорились', 'Agreed') + '</h3>' + (s.kind === 'brand' ? field(T('Права на фото', 'Usage rights'), inp(b + '.rights', s.rights, { ph: T('1 год · онлайн · Россия', '1 year · online') })) : '') + field(T('Ретушь', 'Retouching'), inp(b + '.retouch', s.retouch, { ph: T('сколько кадров, сколько кругов правок', 'frames, rounds of edits') })) + field(T('Сдача кадров', 'Delivery'), inp(b + '.deliver', s.deliver, { ph: T('дата или срок', 'date or term') })) + '</div>';
+  }
+  h += '<div class="card">' + field(T('Заметки', 'Notes'), '<textarea class="inp" data-b="' + b + '.notes" placeholder="' + T('Идеи, ссылки на мудборд, что не забыть', 'Ideas, moodboard links, reminders') + '">' + esc(s.notes) + '</textarea>') + '</div>';
+  h += '<div class="grid2"><a class="btn soft" href="#/p/' + s.id + '/onset">' + T('Режим площадки', 'On-set mode') + '</a><a class="btn soft" href="#/p/' + s.id + '/wrap">' + T('После съёмки', 'After the shoot') + '</a></div>';
+  return h;
+}
+function pTiming(s) {
+  const b = 'shoot:' + s.id;
+  let h = '<div class="row between pad4"><span class="small muted">' + T('Длительность', 'Duration') + ': <b class="mono">' + (durationH(s) ? durationH(s).toFixed(1).replace('.0', '') + T(' ч', 'h') : '—') + '</b></span>' + (durationH(s) > 5 && !hasMeal(s) ? '<span class="badge warn">' + T('нужен обед', 'add lunch') + '</span>' : '') + '</div>';
+  h += '<div class="card tight">';
+  const rows = [...s.timing].sort((a, c) => (mins(a.t) ?? 9999) - (mins(c.t) ?? 9999));
+  rows.forEach((x) => { h += '<div class="tl">' + inp(b + '.timing:' + x.id + '.t', x.t, { type: 'time', r: true, aria: T('Время', 'Time'), style: 'padding:0 8px;font-size:15px' }) + '<input class="inp" data-b="' + b + '.timing:' + x.id + '.w" value="' + esc(x.w) + '" aria-label="' + T('Что происходит', 'What happens') + '"><button class="textbtn" data-a="delRow" data-s="' + s.id + '" data-x="timing|' + x.id + '" aria-label="' + T('Удалить', 'Delete') + '">' + I.x.replace('<svg', '<svg width="16" height="16"') + '</button></div>'; });
+  if (!rows.length) h += '<div class="empty">' + T('Пока пусто', 'Empty') + '</div>';
+  h += '</div><div class="grid2"><button class="btn soft" data-a="addTiming" data-s="' + s.id + '">' + T('+ Строка', '+ Row') + '</button>' + (!hasMeal(s) ? '<button class="btn soft" data-a="addLunch" data-s="' + s.id + '">' + T('+ Обед', '+ Lunch') + '</button>' : '<span></span>') + '</div>';
+  h += '<span class="tiny muted pad4">' + T('Совет: дольше 5 часов — кормим команду. Дольше 10 — это переработка.', 'Tip: over 5 hours — feed the team. Over 10 — overtime.') + '</span>';
+  return h;
+}
+function pTeam(s) {
+  let h = '';
+  const st = { yes: [T('идёт', 'in'), 'ok'], no: [T('не может', 'out'), ''], asked: [T('позвала', 'asked'), 'warn'], '': [T('не звала', 'not asked'), ''] };
+  if (!s.team.length) h += '<div class="empty">' + T('Добавь людей — из своей базы или новых', 'Add people — from your base or new') + '</div>';
+  s.team.forEach((m) => {
+    const x = st[m.status || ''];
+    h += '<div class="card" style="gap:8px"><div class="row"><span class="avatar sm soft">' + esc(initials(m.name)) + '</span><span class="col grow" style="gap:0"><b style="font-weight:600">' + esc(m.name) + '</b><span class="tiny muted">' + esc(roleName(m.role)) + (m.call ? ' · ' + T('сбор', 'call') + ' ' + esc(m.call) : '') + '</span></span><span class="badge ' + x[1] + '">' + x[0] + '</span><button class="iconbtn" style="width:40px;height:40px;border:none" data-a="editMember" data-s="' + s.id + '" data-x="' + m.id + '" aria-label="' + T('Изменить', 'Edit') + '">✎</button></div>' +
+      '<div class="row wrap">' + [['asked', T('Позвала', 'Asked')], ['yes', T('Идёт', 'In')], ['no', T('Не может', 'Out')]].map(([k, l]) => '<button class="chip sm" aria-pressed="' + (m.status === k) + '" data-a="memberStatus" data-s="' + s.id + '" data-x="' + m.id + '|' + k + '">' + l + '</button>').join('') + '<button class="chip sm" data-a="invitePerson" data-s="' + s.id + '" data-x="' + m.id + '">' + T('Написать', 'Message') + '</button></div></div>';
+  });
+  h += '<div class="grid2"><button class="btn soft" data-a="pickPeople" data-s="' + s.id + '">' + T('Из моих людей', 'From my people') + '</button><button class="btn soft" data-a="editMember" data-s="' + s.id + '" data-x="">' + T('+ Новый человек', '+ New person') + '</button></div>';
+  const handles = s.team.map((m) => S.people.find((p) => p.id === m.pid)?.insta).filter(Boolean);
+  if (handles.length) h += '<button class="btn ghost" data-a="copyText" data-x="' + esc(handles.map((x) => (x.startsWith('@') ? x : '@' + x)).join(' ')) + '">' + T('Скопировать отметки для Instagram', 'Copy Instagram tags') + '</button>';
+  const food = teamFood(s);
+  if (food) h += '<div class="hint"><span class="dot"></span><span>' + T('Еда: ', 'Food: ') + esc(food) + '</span></div>';
+  h += '<span class="lock pad4">' + I.lock + T('Ставки видишь только ты. Каждый получает только своё.', 'Only you see rates.') + '</span>';
+  return h;
+}
+function pLooks(s) {
+  let h = '';
+  if (!s.looks.length) h += '<div class="empty">' + T('Образ — это одежда, модель, мейк и волосы в одной карточке', 'A look = outfit, model, make-up and hair on one card') + '</div>';
+  s.looks.forEach((l, i) => {
+    const b = 'shoot:' + s.id + '.looks:' + l.id;
+    h += '<div class="card ' + (i % 2 ? 'glow-sky' : 'glow-pink') + '"><div class="row between"><span class="look-num">' + T('Образ', 'Look') + ' ' + pad(i + 1) + '</span><div class="row"><button class="chip sm" aria-pressed="' + !!l.done + '" data-a="toggleLook" data-s="' + s.id + '" data-x="' + l.id + '">' + (l.done ? T('✓ снят', '✓ shot') : T('не снят', 'to shoot')) + '</button><button class="textbtn" data-a="delRow" data-s="' + s.id + '" data-x="looks|' + l.id + '" aria-label="' + T('Удалить образ', 'Delete look') + '">' + I.trash.replace('<svg', '<svg width="18" height="18"') + '</button></div></div>' +
+      inp(b + '.name', l.name, { ph: T('Название: «Нежный беж»', 'Name: “Soft beige”'), aria: T('Название образа', 'Look name') }) +
+      '<div class="grid2">' + field(T('Модель', 'Model'), inp(b + '.model', l.model, { r: true })) + field(T('Мейк делает', 'Make-up by'), inp(b + '.mua', l.mua)) + '</div>' +
+      field(T('Одежда', 'Clothes'), inp(b + '.clothes', l.clothes, { ph: T('платье, туфли, серьги', 'dress, shoes, earrings') })) +
+      '<div class="grid2">' + field(T('Мейк', 'Make-up'), inp(b + '.makeup', l.makeup, { ph: T('нюд', 'nude') })) + field(T('Волосы', 'Hair'), inp(b + '.hair', l.hair, { ph: T('гладкий пучок', 'sleek bun') })) + '</div>' +
+      field(T('Референс (ссылка)', 'Reference (link)'), inp(b + '.ref', l.ref, { ph: 'pinterest.com/…' })) + '</div>';
+  });
+  h += '<button class="btn soft" data-a="addLook" data-s="' + s.id + '">' + T('+ Образ', '+ Look') + '</button>';
+  return h;
+}
+function pBudget(s) {
+  const total = s.budget.lines.reduce((a, x) => a + num(x.sum), 0);
+  let h = '<div class="card glow-pink" style="padding:22px"><span class="lock">' + I.lock + T('Видишь только ты и заказчик', 'Only you and the client') + '</span><span class="small">' + T('Итого', 'Total') + '</span><span class="h1 mono" style="font-size:40px;font-family:var(--mono);letter-spacing:-0.02em">' + money(total) + ' ₽</span></div>';
+  h += '<div class="card tight">';
+  s.budget.lines.forEach((x) => { const b = 'shoot:' + s.id + '.budget.lines:' + x.id; h += '<div class="tl" style="grid-template-columns:minmax(0,1fr) 120px 36px">' + inp(b + '.label', x.label, { aria: T('Статья', 'Item') }) + inp(b + '.sum', x.sum, { mono: true, num: true, ph: '0', r: true, aria: T('Сумма', 'Amount') }) + '<button class="textbtn" data-a="delBudget" data-s="' + s.id + '" data-x="' + x.id + '" aria-label="' + T('Удалить', 'Delete') + '">' + I.x.replace('<svg', '<svg width="16" height="16"') + '</button></div>'; });
+  h += '</div><div class="grid2"><button class="btn soft" data-a="addBudget" data-s="' + s.id + '">' + T('+ Строка', '+ Line') + '</button><button class="btn soft" data-a="shareBudget" data-s="' + s.id + '">' + T('Заказчику', 'To client') + '</button></div>';
+  h += '<div class="card">' + field(T('Условия и комментарии', 'Terms and notes'), '<textarea class="inp" data-b="shoot:' + s.id + '.budget.note" placeholder="' + T('Предоплата 50%, остаток в день съёмки. Переработка — по часам.', '50% upfront, balance on the day.') + '">' + esc(s.budget.note) + '</textarea>') + '</div>';
+  return h;
+}
+
+/* --- print --- */
+function printHtml(s) {
+  let h = '<div class="printarea show"><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px"><div><div style="font-family:Neucha,var(--head);font-size:22px">set</div><h1 style="margin:6px 0 0;font-family:var(--head);font-weight:500;letter-spacing:-0.03em;line-height:1">' + esc(titleOf(s)) + '</h1></div><div style="text-align:right;font-size:12px">' + (s.date ? '<b style="font-size:16px">' + esc(fmtDate(s.date, { wd: true, year: true })) + '</b><br>' : '') + T('сбор', 'call') + ' ' + esc(s.call) + ' · ' + T('конец', 'wrap') + ' ' + esc(s.end) + '</div></div>';
+  if (s.place || s.address) h += '<p style="margin:10px 0 0"><b>' + esc(s.place) + '</b> ' + esc(s.address) + '</p>';
+  if (s.timing.length) h += '<h3 style="margin-top:16px">' + T('Тайминг', 'Schedule') + '</h3><table><tbody>' + [...s.timing].sort((a, c) => (mins(a.t) ?? 9999) - (mins(c.t) ?? 9999)).map((x) => '<tr><td style="width:60px;font-family:var(--mono)">' + esc(x.t) + '</td><td>' + esc(x.w) + '</td></tr>').join('') + '</tbody></table>';
+  if (s.team.length) h += '<h3 style="margin-top:16px">' + T('Команда', 'Team') + '</h3><table><thead><tr><th>' + T('Имя', 'Name') + '</th><th>' + T('Роль', 'Role') + '</th><th>' + T('Сбор', 'Call') + '</th><th>' + T('Связь', 'Contact') + '</th></tr></thead><tbody>' + s.team.map((m) => '<tr><td>' + esc(m.name) + '</td><td>' + esc(roleName(m.role)) + '</td><td style="font-family:var(--mono)">' + esc(m.call || s.call) + '</td><td>' + esc(S.people.find((p) => p.id === m.pid)?.phone || '') + '</td></tr>').join('') + '</tbody></table>';
+  const food = teamFood(s); if (food) h += '<p style="margin-top:10px"><b>' + T('Еда', 'Food') + ':</b> ' + esc(food) + '</p>';
+  if (s.modules.looks && s.looks.length) h += '<h3 class="pb" style="margin-top:16px">' + T('Образы', 'Looks') + '</h3><div class="looks">' + s.looks.map((l, i) => '<div class="look"><div style="font-family:var(--mono);font-size:11px">' + T('ОБРАЗ', 'LOOK') + ' ' + pad(i + 1) + '</div><b style="font-size:15px">' + esc(l.name || '—') + '</b><br>' + T('Модель', 'Model') + ': ' + esc(l.model || '—') + '<br>' + T('Одежда', 'Clothes') + ': ' + esc(l.clothes || '—') + '<br>' + T('Мейк', 'Make-up') + ': ' + esc(l.makeup || '—') + (l.mua ? ' (' + esc(l.mua) + ')' : '') + '<br>' + T('Волосы', 'Hair') + ': ' + esc(l.hair || '—') + '<div style="margin-top:6px">☐ ' + T('снят', 'shot') + '</div></div>').join('') + '</div>';
+  if (s.notes) h += '<p style="margin-top:14px;white-space:pre-line"><b>' + T('Заметки', 'Notes') + ':</b> ' + esc(s.notes) + '</p>';
+  h += '<div class="foot">' + T('Собрано в SET · смета и ставки на этот лист не попадают', 'Made with SET · budget and rates are never printed') + '</div></div>';
+  return h;
+}
+function vPrint(id) {
+  const s = getShoot(id); if (!s) return vNotFound();
+  return '<div class="screen" style="padding-bottom:0"><div class="top">' + backBtn('#/p/' + s.id) + '<span class="kicker">' + T('Лист на площадку', 'Set sheet') + '</span><span style="width:44px"></span></div><span class="small muted pad4">' + T('Тайминг, команда и образы на А4. Смета и ставки сюда не попадают.', 'Schedule, team and looks on A4. No money on it.') + '</span></div>' + printHtml(s) +
+    '<div class="cta nonav"><button class="btn big grow" data-a="print">' + T('Распечатать или PDF', 'Print or save PDF') + '</button><button class="btn ghost" style="min-height:60px;border-radius:26px" data-a="shareTeam" data-s="' + s.id + '">' + T('Текстом', 'As text') + '</button></div>';
+}
+
+/* --- on set --- */
+function vOnSet(id) {
+  const s = getShoot(id); if (!s) return vNotFound();
+  const looks = s.looks;
+  const left = looks.filter((l) => !l.done);
+  const cur = left[0];
+  const now = new Date();
+  const nm = now.getHours() * 60 + now.getMinutes();
+  const tl = [...s.timing].sort((a, c) => (mins(a.t) ?? 0) - (mins(c.t) ?? 0));
+  const nextT = s.date === todayIso() ? tl.find((x) => (mins(x.t) ?? 0) > nm) : null;
+  let h = '<div class="screen dark has-cta" style="margin:0 -0px"><div class="top"><span class="kicker" style="color:#9A968C">' + T('Режим площадки', 'On set') + ' · ' + esc(titleOf(s)) + '</span><a class="iconbtn" href="#/p/' + s.id + '" aria-label="' + T('Выйти', 'Exit') + '">' + I.x + '</a></div>';
+  h += '<div class="row between" style="align-items:flex-end"><span class="big-date" style="font-size:84px">' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + '</span><span class="mono small" style="color:#9A968C;padding-bottom:10px">' + (looks.length - left.length) + '/' + looks.length + ' ' + T('образов', 'looks') + '</span></div>';
+  if (nextT) h += '<div class="hint"><span class="dot"></span><span>' + T('Дальше в ', 'Next at ') + esc(nextT.t) + ': ' + esc(nextT.w) + '</span></div>';
+  if (!looks.length) h += '<div class="hint"><span class="dot"></span><span>' + T('Добавь образы в проекте — здесь они пойдут по очереди.', 'Add looks in the project — they’ll queue here.') + '</span></div>';
+  if (cur) {
+    const i = looks.indexOf(cur);
+    h += '<div style="background:radial-gradient(circle at 88% 8%, rgba(244,161,195,0.5), rgba(244,161,195,0.12) 45%, transparent 70%), #232328;border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:8px"><span class="mono small" style="color:#C9C5BB">' + T('СЕЙЧАС · ОБРАЗ ', 'NOW · LOOK ') + pad(i + 1) + '</span><span class="h1" style="font-size:44px">' + esc(cur.name || T('Образ ', 'Look ') + pad(i + 1)) + '</span><span>' + esc([cur.model, cur.clothes].filter(Boolean).join(' · ')) + '</span><span class="small" style="color:#C9C5BB">' + esc([cur.makeup && T('мейк: ', 'make-up: ') + cur.makeup, cur.hair && T('волосы: ', 'hair: ') + cur.hair].filter(Boolean).join(' · ')) + '</span></div>';
+    const nx = left[1];
+    if (nx) h += '<span class="small pad4" style="color:#9A968C">' + T('Следом: ', 'Then: ') + esc(nx.name || T('образ ', 'look ') + pad(looks.indexOf(nx) + 1)) + (nx.model ? ' · ' + esc(nx.model) + T(' — пора на грим', ' — to make-up') : '') + '</span>';
+  } else if (looks.length) {
+    h += '<div style="background:#ECE97E;color:var(--ink);border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:10px"><span class="h1" style="font-size:44px">' + T('Снято!', 'That’s a wrap!') + '</span><span>' + T('Все образы сняты. Вещи — по списку возврата.', 'All looks shot. Pack and return the clothes.') + '</span><a class="btn" href="#/p/' + s.id + '/wrap">' + T('Что дальше', 'What’s next') + '</a></div>';
+  }
+  h += '<div class="card tight" style="background:#232328">' + looks.map((l, i) => '<button class="li" data-a="toggleLook" data-s="' + s.id + '" data-x="' + l.id + '" style="color:#fff"><span class="check ' + (l.done ? 'on' : '') + '">' + (l.done ? '✓' : '') + '</span><span class="grow ' + (l.done ? 'strike' : '') + '">' + pad(i + 1) + ' · ' + esc(l.name || '') + (l.model ? ' · ' + esc(l.model) : '') + '</span></button>').join('') + '</div>';
+  h += '</div>';
+  if (cur) h += '<div class="cta nonav dark"><button class="btn big white" data-a="toggleLook" data-s="' + s.id + '" data-x="' + cur.id + '">' + T('Снято — следующий', 'Shot — next') + '</button></div>';
+  return h;
+}
+
+/* --- wrap --- */
+function vWrap(id) {
+  const s = getShoot(id); if (!s) return vNotFound();
+  const b = 'shoot:' + s.id + '.my';
+  let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/p/' + s.id) + '<span class="kicker">' + T('После съёмки', 'After the shoot') + '</span><span style="width:44px"></span></div><h1 class="pad4" style="font-size:40px">' + esc(titleOf(s)) + '</h1>';
+  if (s.team.length) {
+    const paidN = s.team.filter((m) => m.paid).length;
+    h += '<div class="row between pad4"><h3>' + T('Оплаты команде', 'Team payments') + '</h3><span class="mono small">' + paidN + '/' + s.team.length + '</span></div><div class="card tight">' + s.team.map((m) => '<div class="li"><span class="grow"><b style="font-weight:600">' + esc(m.name) + '</b><br><span class="tiny muted">' + esc(roleName(m.role)) + (m.rate ? ' · ' + money(num(m.rate)) + ' ₽' : '') + '</span></span><button class="chip sm" aria-pressed="' + !!m.paid + '" data-a="memberPaid" data-s="' + s.id + '" data-x="' + m.id + '">' + (m.paid ? T('✓ оплачено', '✓ paid') : T('отметить', 'mark paid')) + '</button></div>').join('') + '</div><span class="lock pad4">' + I.lock + T('Этот список видишь только ты', 'Only you see this list') + '</span>';
+  }
+  h += '<div class="card glow-pink"><h3>' + T('Мой гонорар', 'My fee') + '</h3><div class="grid2">' + field(T('Роль', 'Role'), roleSelect(b + '.role', s.my.role)) + field(T('Сумма, ₽', 'Amount'), inp(b + '.fee', s.my.fee, { mono: true, num: true, ph: T('0 — если TFP', '0 for TFP') })) + '</div>' +
+    '<div class="row between"><span>' + T('Смен', 'Shifts') + '</span><span class="row"><button class="iconbtn" data-a="myShifts" data-s="' + s.id + '" data-x="-1" aria-label="−">−</button><span class="mono" style="min-width:24px;text-align:center">' + s.my.shifts + '</span><button class="iconbtn" data-a="myShifts" data-s="' + s.id + '" data-x="1" aria-label="+">+</button></span></div>' +
+    '<div class="row wrap"><button class="chip sm" aria-pressed="' + !!s.my.paid + '" data-a="myFlag" data-s="' + s.id + '" data-x="paid">' + (s.my.paid ? T('✓ Мне оплатили', '✓ I got paid') : T('Ждёт оплаты', 'Awaiting payment')) + '</button><button class="chip sm" aria-pressed="' + !!s.my.check + '" data-a="myFlag" data-s="' + s.id + '" data-x="check">' + (s.my.check ? T('✓ Чек выбит', '✓ Receipt issued') : T('Чек не выбит', 'No receipt yet')) + '</button></div>' +
+    '<span class="tiny muted">' + T('Попадёт в «Мои съёмки и доход». Видишь только ты.', 'Goes to “My shoots & income”. Only you see it.') + '</span></div>';
+  if (s.deliver || s.retouch) h += '<div class="card glow-sky"><h3>' + T('Сдача', 'Delivery') + '</h3><span class="small">' + esc([s.retouch, s.deliver].filter(Boolean).join(' · ')) + '</span></div>';
+  h += '</div><div class="cta nonav">' + (s.status === 'done' ? '<button class="btn big ghost" data-a="reopen" data-s="' + s.id + '">' + T('Вернуть в работу', 'Reopen') + '</button>' : '<button class="btn big" data-a="finishShoot" data-s="' + s.id + '">' + T('Съёмка сдана', 'Mark as delivered') + '</button>') + '</div>';
+  return h;
+}
+function roleSelect(b, val, r) {
+  const opts = GROUPS.map((g) => '<optgroup label="' + esc(L() === 'en' ? g.en : g.ru) + '">' + g.roles.map((x) => '<option value="' + x[0] + '"' + (val === x[0] ? ' selected' : '') + '>' + esc(L() === 'en' ? x[2] : x[1]) + '</option>').join('') + '</optgroup>').join('');
+  const custom = val && !ROLE[val] ? '<option value="' + esc(val) + '" selected>' + esc(val) + '</option>' : '';
+  return '<select class="inp" data-b="' + esc(b) + '"' + (r ? ' data-r="1"' : '') + '>' + custom + opts + '</select>';
+}
+
+/* --- calendar --- */
+function vCalendar() {
+  const now = new Date();
+  const c = ui.cal || (ui.cal = { y: now.getFullYear(), m: now.getMonth() });
+  const first = new Date(c.y, c.m, 1);
+  const dim = new Date(c.y, c.m + 1, 0).getDate();
+  const off = (first.getDay() + 6) % 7;
+  const t = todayIso();
+  const byDay = {};
+  S.shoots.forEach((s) => { if (s.date) (byDay[s.date] = byDay[s.date] || []).push(s); });
+  const sel = ui.calSel;
+  let h = '<div class="screen"><div class="top"><span class="logo">set</span><a class="avatar" href="#/me">' + esc(initials(S.profile.name)) + '</a></div>';
+  h += '<div class="row between pad4" style="align-items:flex-end"><div class="col" style="gap:0"><span class="big-date" style="font-size:44px;font-weight:600">' + esc(MONTHS_N[L()][c.m].toUpperCase()) + '</span><span class="big-date" style="font-size:32px;color:#5C5A63">' + c.y + '</span></div><div class="row"><button class="iconbtn" data-a="calMove" data-x="-1" aria-label="' + T('Предыдущий месяц', 'Previous month') + '">' + I.back + '</button><button class="iconbtn" data-a="calMove" data-x="1" aria-label="' + T('Следующий месяц', 'Next month') + '">' + I.next + '</button></div></div>';
+  h += '<div class="cal">' + (L() === 'en' ? ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] : ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']).map((w) => '<span class="wd">' + w + '</span>').join('');
+  for (let i = 0; i < off; i++) h += '<button class="empty" tabindex="-1" aria-hidden="true"></button>';
+  for (let d = 1; d <= dim; d++) {
+    const iso = c.y + '-' + pad(c.m + 1) + '-' + pad(d);
+    const list = byDay[iso] || [];
+    let cls = iso < t ? 'past' : '';
+    if (list.some((s) => s.src === 'set')) cls = 'has'; else if (list.length) cls = 'own';
+    if (iso === t && !list.length) cls = 'today';
+    if (sel === iso) cls += ' sel';
+    h += '<button class="' + cls + '" data-a="calPick" data-x="' + iso + '" aria-label="' + esc(fmtDate(iso)) + (list.length ? ', ' + list.length + ' ' + T('съёмки', 'shoots') : '') + '">' + d + '</button>';
+  }
+  h += '</div><div class="row wrap small muted pad4" style="gap:14px"><span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:5px;background:rgb(var(--pink))"></span>' + T('в SET', 'in SET') + '</span><span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:5px;border:1.5px dashed var(--ink)"></span>' + T('не через SET', 'outside SET') + '</span></div>';
+  h += '<button class="card dashed" data-a="ownSheet" data-x="' + esc(sel || '') + '" style="text-align:left"><b>' + T('+ Своя съёмка', '+ Add your own shoot') + '</b><span class="small muted">' + T('Не всё идёт через приложение — отметь, чтобы не наложилось и попало в доход', 'Not everything runs through the app — log it so nothing overlaps and it counts in your income') + '</span></button>';
+  const prefix = c.y + '-' + pad(c.m + 1);
+  const monthList = S.shoots.filter((s) => s.date && (sel ? s.date === sel : s.date.startsWith(prefix))).sort(sortByDate);
+  if (sel) h += '<div class="row between pad4"><h3>' + esc(fmtDate(sel, { wd: true })) + '</h3><button class="textbtn" data-a="calPick" data-x="">' + T('Весь месяц', 'Whole month') + '</button></div>';
+  if (!monthList.length) h += '<div class="empty">' + (sel ? T('В этот день свободно', 'Free that day') : T('В этом месяце пока пусто', 'Nothing this month yet')) + '</div>';
+  monthList.forEach((s) => {
+    const dd = parseIso(s.date);
+    const own = s.src === 'own';
+    h += '<a class="card ' + (own ? 'dashed' : 'glow-' + (KINDS[s.kind]?.glow || 'pink')) + '" href="' + (own ? '#/own/' + s.id : '#/p/' + s.id) + '" style="text-decoration:none;color:inherit;flex-direction:row;gap:14px"><span class="col" style="gap:0;min-width:70px"><span class="tiny">' + esc(WD_L[L()][dd.getDay()]) + '</span><span class="big-date" style="font-size:44px">' + dd.getDate() + '</span><span class="big-date" style="font-size:22px">' + MON_S[L()][dd.getMonth()].toUpperCase() + '</span></span><span class="col grow" style="gap:6px"><b style="font-weight:600">' + esc(titleOf(s)) + '</b>' + (own ? '<span class="tiny muted">' + T('не через SET', 'outside SET') + (s.my.fee !== '' ? ' · ' + (num(s.my.fee) ? money(num(s.my.fee)) + ' ₽' : 'TFP') : '') + '</span>' : '') +
+      (s.call ? '<span class="row between small" style="background:rgba(255,255,255,.45);border-radius:10px;padding:6px 10px"><b>' + esc(s.call) + '</b><span>' + T('сбор', 'call') + '</span></span>' : '') + (s.end && !own ? '<span class="row between small" style="background:rgba(255,255,255,.45);border-radius:10px;padding:6px 10px"><b>' + esc(s.end) + '</b><span>' + T('конец', 'wrap') + '</span></span>' : '') + '</span></a>';
+  });
+  h += '<span class="tiny muted pad4">' + T('Съёмки не через SET видишь только ты.', 'Only you see shoots outside SET.') + '</span></div>' + nav('calendar');
+  return h;
+}
+
+/* --- people --- */
+function vPeople() {
+  const q = (ui.q || '').toLowerCase();
+  const list = S.people.filter((p) => !q || (p.name + ' ' + roleName(p.role) + ' ' + (p.insta || '')).toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name));
+  let h = '<div class="screen"><div class="top"><span class="logo">set</span><a class="avatar" href="#/me">' + esc(initials(S.profile.name)) + '</a></div><h1 class="pad4">' + T('Люди', 'People') + '</h1>';
+  h += '<input class="inp" type="search" data-b="ui.q" data-live="1" value="' + esc(ui.q || '') + '" placeholder="' + T('Имя, роль или @ник', 'Name, role or @handle') + '" aria-label="' + T('Поиск', 'Search') + '">';
+  if (!S.people.length) h += '<div class="empty">' + T('Все, с кем ты снимаешь, будут здесь. Люди добавляются сами, когда ты зовёшь их в проект.', 'Everyone you shoot with lives here. People are added when you invite them to a project.') + '</div>';
+  h += '<div class="card tight">' + list.map((p) => { const n = S.shoots.filter((s) => s.team.some((m) => m.pid === p.id)).length; return '<button class="li" data-a="editPerson" data-x="' + p.id + '"><span class="avatar sm soft">' + esc(initials(p.name)) + '</span><span class="grow"><b style="font-weight:600">' + esc(p.name) + '</b><br><span class="tiny muted">' + esc(roleName(p.role)) + (p.insta ? ' · ' + esc(p.insta.startsWith('@') ? p.insta : '@' + p.insta) : '') + '</span></span><span class="tiny muted mono">' + n + ' ' + T(plural(n, 'съёмка', 'съёмки', 'съёмок'), 'shoots') + '</span></button>'; }).join('') + '</div>';
+  h += '<button class="btn soft" data-a="editPerson" data-x="">' + T('+ Человек', '+ Person') + '</button></div>' + nav('people');
+  return h;
+}
+
+/* --- me / income --- */
+function myEntries() {
+  const t = todayIso();
+  return S.shoots.filter((s) => s.date && (s.status === 'done' || s.date <= t)).sort((a, b) => sortByDate(b, a));
+}
+function vMe() {
+  const p = S.profile;
+  const now = new Date();
+  const ym = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+  const all = myEntries();
+  const inPer = (s) => ui.per === 'all' || (ui.per === 'year' ? s.date.startsWith(String(now.getFullYear())) : s.date.startsWith(ym));
+  const list = all.filter(inPer);
+  const shown = list.filter((s) => ui.src === 'all' || s.src === ui.src);
+  const earned = list.filter((s) => s.my.paid).reduce((a, s) => a + num(s.my.fee), 0);
+  const owed = list.filter((s) => !s.my.paid).reduce((a, s) => a + num(s.my.fee), 0);
+  const shifts = list.reduce((a, s) => a + (Number(s.my.shifts) || 0), 0);
+  const paidShifts = list.filter((s) => s.my.paid && num(s.my.fee) > 0).reduce((a, s) => a + (Number(s.my.shifts) || 0), 0);
+  const noCheck = list.filter((s) => s.my.paid && num(s.my.fee) > 0 && !s.my.check);
+  const months = {};
+  list.forEach((s) => { const k = s.date.slice(0, 7); months[k] = (months[k] || 0) + (s.my.paid ? num(s.my.fee) : 0); });
+  const mk = Object.keys(months).sort().reverse().slice(0, 6);
+  const max = Math.max(1, ...mk.map((k) => months[k]));
+  const rl = p.roles.map(roleName).concat(p.ownRole ? [p.ownRole] : []).join(' · ');
+  let h = '<div class="screen"><div class="top">' + backBtn('#/today') + '<a class="iconbtn" href="#/settings" aria-label="' + T('Настройки', 'Settings') + '">' + I.gear + '</a></div>';
+  h += '<div class="row pad4" style="gap:14px"><span class="avatar" style="width:60px;height:60px;border-radius:30px;font-size:24px">' + esc(initials(p.name)) + '</span><span class="col grow" style="gap:2px"><b style="font-size:18px">' + esc(p.name || T('Без имени', 'No name')) + '</b><span class="small muted">' + esc(rl) + '</span></span><button class="btn sm soft" data-a="editProfile">' + T('Изменить', 'Edit') + '</button></div>';
+  h += '<h1 class="pad4">' + T('Мои съёмки', 'My shoots') + '</h1>';
+  h += '<div class="chips">' + chip(MONTHS_N[L()][now.getMonth()], ui.per === 'month', 'setUi', 'per|month') + chip(String(now.getFullYear()), ui.per === 'year', 'setUi', 'per|year') + chip(T('Всё время', 'All time'), ui.per === 'all', 'setUi', 'per|all') + '</div>';
+  h += '<div class="card glow-pink" style="padding:22px;gap:14px"><div class="col" style="gap:2px"><span class="tiny">' + T('Заработано', 'Earned') + '</span><span class="h1" style="font-family:var(--mono);font-size:42px;letter-spacing:-0.03em">' + money(earned) + ' ₽</span></div>' +
+    '<div class="grid3">' + [[shifts, T(plural(shifts, 'смена', 'смены', 'смен'), 'shifts')], [list.length, T(plural(list.length, 'съёмка', 'съёмки', 'съёмок'), 'shoots')], [paidShifts ? money(earned / paidShifts) : '—', T('₽ за смену в среднем', 'avg per shift')]].map((x) => '<div class="col" style="gap:2px;padding:12px;border-radius:16px;background:rgba(255,255,255,.5)"><span class="mono" style="font-size:20px;font-weight:500">' + x[0] + '</span><span class="tiny">' + x[1] + '</span></div>').join('') + '</div>' +
+    (owed ? '<div class="inkcard row between"><span>' + T('Ещё должны заплатить', 'Still owed to you') + '</span><b class="mono">' + money(owed) + ' ₽</b></div>' : '') +
+    (noCheck.length ? '<span class="small">' + T('Чек в «Мой налог» не выбит: ', 'No receipt yet: ') + esc(noCheck.map((s) => s.client || titleOf(s)).join(', ')) + '</span>' : '') + '</div>';
+  if (mk.length) h += '<div class="card bars"><span class="tiny muted">' + T('По месяцам, ₽', 'By month') + '</span>' + mk.map((k) => '<div style="display:grid;grid-template-columns:62px minmax(0,1fr) 78px;gap:10px;align-items:center" class="small"><span>' + esc(MON_S[L()][Number(k.slice(5)) - 1] + ' ' + k.slice(2, 4)) + '</span><span class="bar"><i style="width:' + Math.round(months[k] / max * 100) + '%"></i></span><span class="mono" style="text-align:right">' + money(months[k]) + '</span></div>').join('') + '</div>';
+  h += '<div class="chips">' + chip(T('Все', 'All'), ui.src === 'all', 'setUi', 'src|all', 'sm') + chip(T('Через SET', 'Via SET'), ui.src === 'set', 'setUi', 'src|set', 'sm') + chip(T('Добавила сама', 'Added by me'), ui.src === 'own', 'setUi', 'src|own', 'sm') + '</div>';
+  if (!shown.length) h += '<div class="empty">' + T('Прошедшие съёмки появятся здесь. Свои — добавь в календаре.', 'Past shoots appear here. Add your own in the calendar.') + '</div>';
+  shown.forEach((s) => {
+    const d = parseIso(s.date); const fee = num(s.my.fee); const tfp = s.my.fee !== '' && fee === 0;
+    const badge = s.my.fee === '' ? ['', T('сумма?', 'amount?')] : tfp ? ['', T('без оплаты', 'unpaid')] : s.my.paid ? ['ok', s.my.check ? T('оплачено · чек', 'paid · receipt') : T('оплачено', 'paid')] : ['ink', T('ждёт оплаты', 'awaiting')];
+    h += '<button class="card ' + (s.src === 'own' ? 'dashed' : '') + '" data-a="editIncome" data-x="' + s.id + '" style="flex-direction:row;gap:12px;align-items:flex-start;text-align:left;padding:16px"><span class="col mono" style="gap:0;min-width:42px"><span style="font-size:20px">' + d.getDate() + '</span><span class="tiny">' + MON_S[L()][d.getMonth()] + (d.getFullYear() !== now.getFullYear() ? ' ' + String(d.getFullYear()).slice(2) : '') + '</span></span><span class="col grow" style="gap:3px"><b style="font-weight:600">' + esc(titleOf(s)) + '</b><span class="tiny muted">' + esc(roleName(s.my.role)) + ' · ' + s.my.shifts + ' ' + T(plural(Number(s.my.shifts) || 0, 'смена', 'смены', 'смен'), 'shifts') + ' · ' + (s.src === 'own' ? T('добавила сама', 'added by me') : T('через SET', 'via SET')) + '</span></span><span class="col" style="align-items:flex-end;gap:4px"><span class="mono">' + (s.my.fee === '' ? '—' : tfp ? 'TFP' : money(fee) + ' ₽') + '</span><span class="badge ' + badge[0] + '">' + badge[1] + '</span></span></button>';
+  });
+  h += '<div class="grid2"><button class="btn soft" data-a="ownSheet" data-x="">' + T('+ Своя съёмка', '+ Own shoot') + '</button><button class="btn soft" data-a="exportCsv">' + T('Таблица CSV', 'Export CSV') + '</button></div>';
+  h += '<span class="lock pad4">' + I.lock + T('Суммы видишь только ты.', 'Only you see the amounts.') + '</span></div>' + nav('');
+  return h;
+}
+
+/* --- settings --- */
+function vSettings() {
+  let h = '<div class="screen"><div class="top">' + backBtn('#/me') + '<span class="kicker">' + T('Настройки', 'Settings') + '</span><span style="width:44px"></span></div><h1 class="pad4">' + T('Настройки', 'Settings') + '</h1>';
+  h += '<div class="card"><h3>' + T('Язык', 'Language') + '</h3><div class="chips">' + chip('Русский', S.lang === 'ru', 'lang', 'ru') + chip('English', S.lang === 'en', 'lang', 'en') + '</div></div>';
+  h += '<div class="card glow-teal"><h3>' + T('Как поставить на телефон', 'Install on your phone') + '</h3><span class="small">' + T('iPhone: в Safari нажми «Поделиться» → «На экран Домой». Android: в Chrome меню ⋮ → «Добавить на главный экран». SET откроется как приложение и будет работать без интернета.', 'iPhone: in Safari tap Share → Add to Home Screen. Android: Chrome menu ⋮ → Add to Home screen.') + '</span></div>';
+  h += '<div class="card"><h3>' + T('Резервная копия', 'Backup') + '</h3><span class="small muted">' + T('Все данные хранятся только в этом телефоне. Сохраняй копию раз в неделю — и перед сменой телефона.', 'Your data lives only on this device. Save a backup weekly.') + '</span><div class="grid2"><button class="btn soft" data-a="exportJson">' + T('Сохранить копию', 'Save backup') + '</button><button class="btn soft" data-a="importJson">' + T('Загрузить копию', 'Restore') + '</button></div></div>';
+  h += '<div class="card"><h3>' + T('Пример', 'Example') + '</h3><span class="small muted">' + T('Добавит съёмку для бренда, TFP, частного клиента и пару прошедших — чтобы всё потрогать.', 'Adds sample shoots to explore.') + '</span><button class="btn soft" data-a="demo">' + T('Добавить пример', 'Add example') + '</button></div>';
+  h += '<div class="card"><h3>' + T('Начать с чистого листа', 'Start over') + '</h3><button class="btn danger" data-a="wipe">' + T('Удалить все данные', 'Delete all data') + '</button></div>';
+  h += '<span class="tiny muted pad4">SET ' + VERSION + ' · ' + T('бета: данные только на этом устройстве', 'beta: data on this device only') + '</span></div>' + nav('');
+  return h;
+}
+function vNotFound() { return '<div class="screen"><div class="top">' + backBtn('#/today') + '</div><div class="empty">' + T('Такой съёмки нет', 'Shoot not found') + '</div></div>' + nav(''); }
+
+/* ---------- sheets ---------- */
+function vSheet() {
+  const sh = ui.sheet; if (!sh) return '';
+  let h = '<div class="sheet-bg" data-a="closeSheet" data-self="1"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>';
+  if (sh.type === 'share') {
+    h += '<div class="row between"><h2>' + esc(sh.title) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div><textarea class="inp" id="shareText" style="min-height:200px;font-size:14px">' + esc(sh.text) + '</textarea>' +
+      '<div class="grid2"><button class="btn" data-a="shareTo" data-x="tg">Telegram</button><button class="btn" data-a="shareTo" data-x="wa">WhatsApp</button></div><div class="grid2"><button class="btn soft" data-a="shareTo" data-x="copy">' + T('Скопировать', 'Copy') + '</button>' + (navigator.share ? '<button class="btn soft" data-a="shareTo" data-x="native">' + T('Ещё…', 'More…') + '</button>' : '') + '</div><span class="tiny muted">' + T('Текст можно поправить перед отправкой', 'You can edit the text before sending') + '</span>';
+  }
+  if (sh.type === 'member') {
+    const s = getShoot(sh.s); const m = sh.data;
+    h += '<div class="row between"><h2>' + (sh.isNew ? T('Новый человек', 'New person') : T('В команде', 'Team member')) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>' +
+      field(T('Имя', 'Name'), '<input class="inp" id="mName" value="' + esc(m.name) + '" placeholder="' + T('Карина', 'Name') + '">') + field(T('Роль на этой съёмке', 'Role on this shoot'), roleSelect('', m.role).replace('data-b=""', 'id="mRole"')) +
+      '<div class="grid2">' + field(T('Сбор', 'Call'), '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" id="mCall" value="' + esc(m.call || s.call) + '">') + field(T('Ставка, ₽', 'Rate'), '<input class="inp mono" inputmode="numeric" id="mRate" value="' + esc(m.rate) + '">') + '</div>' +
+      (sh.isNew ? '<div class="grid2">' + field(T('Телефон', 'Phone'), '<input class="inp" type="tel" id="mPhone">') + field('Instagram', '<input class="inp" id="mInsta" placeholder="@">') + '</div>' : '') +
+      '<button class="btn big" data-a="saveMember">' + T('Сохранить', 'Save') + '</button>' + (!sh.isNew ? '<button class="btn danger" data-a="removeMember">' + T('Убрать из проекта', 'Remove from project') + '</button>' : '');
+  }
+  if (sh.type === 'pick') {
+    const s = getShoot(sh.s); const inTeam = new Set(s.team.map((m) => m.pid));
+    const avail = S.people.filter((p) => !inTeam.has(p.id));
+    h += '<div class="row between"><h2>' + T('Мои люди', 'My people') + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>';
+    if (!avail.length) h += '<div class="empty">' + T('Все уже в команде или база пуста', 'Everyone is in, or your base is empty') + '</div>';
+    h += '<div class="card tight">' + avail.map((p) => { const busy = S.shoots.some((x) => x.id !== s.id && x.date && x.date === s.date && x.team.some((m) => m.pid === p.id && m.status !== 'no')); return '<button class="li" data-a="addFromBase" data-x="' + p.id + '"><span class="avatar sm soft">' + esc(initials(p.name)) + '</span><span class="grow"><b style="font-weight:600">' + esc(p.name) + '</b><br><span class="tiny muted">' + esc(roleName(p.role)) + '</span></span>' + (busy ? '<span class="badge warn">' + T('занят(а) в этот день', 'busy that day') + '</span>' : '<span class="badge">+</span>') + '</button>'; }).join('') + '</div>';
+  }
+  if (sh.type === 'person') {
+    const p = sh.data;
+    h += '<div class="row between"><h2>' + (sh.isNew ? T('Новый человек', 'New person') : esc(p.name)) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>' +
+      field(T('Имя', 'Name'), '<input class="inp" id="pName" value="' + esc(p.name) + '">') + field(T('Роль', 'Role'), roleSelect('', p.role).replace('data-b=""', 'id="pRole"')) +
+      '<div class="grid2">' + field(T('Телефон', 'Phone'), '<input class="inp" type="tel" id="pPhone" value="' + esc(p.phone || '') + '">') + field('Instagram', '<input class="inp" id="pInsta" value="' + esc(p.insta || '') + '" placeholder="@">') + '</div>' +
+      '<div class="col"><span class="tiny muted">' + T('Не ест', 'Food') + '</span><div class="chips">' + FOOD.slice(1).map((f) => '<button class="chip sm" data-a="togglePFood" data-x="' + f[0] + '" aria-pressed="' + (p.food || []).includes(f[0]) + '">' + esc(L() === 'en' ? f[2] : f[1]) + '</button>').join('') + '</div></div>' +
+      field(T('Заметка', 'Note'), '<textarea class="inp" id="pNote" placeholder="' + T('Размеры, рост, что важно знать', 'Sizes, notes') + '">' + esc(p.note || '') + '</textarea>') +
+      '<button class="btn big" data-a="savePerson">' + T('Сохранить', 'Save') + '</button>' + (!sh.isNew ? '<button class="btn danger" data-a="deletePerson">' + T('Удалить из базы', 'Delete') + '</button>' : '');
+  }
+  if (sh.type === 'own' || sh.type === 'income') {
+    const s = sh.data;
+    const own = s.src === 'own';
+    const clash = s.date && S.shoots.find((x) => x.id !== s.id && x.date === s.date);
+    h += '<div class="row between"><h2>' + (sh.isNew ? T('Своя съёмка', 'Own shoot') : esc(titleOf(s))) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>';
+    if (own) h += field(T('Что снимаем', 'What'), '<input class="inp" id="oTitle" value="' + esc(s.client || s.what ? titleOf(s) : '') + '" placeholder="' + T('Шоурум · лукбук', 'Showroom · lookbook') + '">') +
+      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="oDate" value="' + esc(s.date) + '" data-a2="ownDate">') + field(T('Сбор', 'Call'), '<input class="inp mono" data-time="1" inputmode="numeric" maxlength="5" placeholder="10:00" id="oCall" value="' + esc(s.call) + '">') + '</div>';
+    if (clash) h += '<span class="small" style="color:var(--red);font-weight:600">' + T('В этот день уже есть: ', 'Already booked that day: ') + esc(titleOf(clash)) + '</span>';
+    h += '<div class="grid2">' + field(T('Роль', 'Role'), roleSelect('', s.my.role).replace('data-b=""', 'id="oRole"')) + field(T('Сумма, ₽', 'Amount'), '<input class="inp mono" inputmode="numeric" id="oFee" value="' + esc(s.my.fee) + '" placeholder="' + T('0 — TFP', '0 = TFP') + '">') + '</div>' +
+      '<div class="row between"><span>' + T('Смен', 'Shifts') + '</span><span class="row"><button class="iconbtn" data-a="sheetShift" data-x="-1">−</button><span class="mono" id="oShifts" style="min-width:24px;text-align:center">' + s.my.shifts + '</span><button class="iconbtn" data-a="sheetShift" data-x="1">+</button></span></div>' +
+      '<div class="row wrap"><button class="chip sm" data-a="sheetFlag" data-x="paid" aria-pressed="' + !!s.my.paid + '">' + (s.my.paid ? T('✓ Оплачено', '✓ Paid') : T('Ждёт оплаты', 'Awaiting')) + '</button><button class="chip sm" data-a="sheetFlag" data-x="check" aria-pressed="' + !!s.my.check + '">' + (s.my.check ? T('✓ Чек выбит', '✓ Receipt') : T('Чек не выбит', 'No receipt')) + '</button></div>' +
+      '<input class="inp" id="oNote" value="' + esc(s.my.note) + '" placeholder="' + T('Заметка: аванс, переработка', 'Note: advance, overtime') + '">' +
+      '<button class="btn big" data-a="saveOwn">' + T('Сохранить', 'Save') + '</button>' + (!sh.isNew && own ? '<button class="btn danger" data-a="deleteOwn">' + T('Удалить', 'Delete') + '</button>' : '') + (!own ? '<a class="btn ghost" href="#/p/' + s.id + '">' + T('Открыть проект', 'Open project') + '</a>' : '');
+  }
+  if (sh.type === 'menu') {
+    const s = getShoot(sh.s);
+    h += '<h2>' + esc(titleOf(s)) + '</h2><button class="btn soft" data-a="dupShoot">' + T('Дублировать как шаблон', 'Duplicate as template') + '</button><button class="btn soft" data-a="go" data-x="#/p/' + s.id + '/wrap">' + T('После съёмки', 'After the shoot') + '</button><button class="btn danger" data-a="deleteShoot">' + T('Удалить съёмку', 'Delete shoot') + '</button><button class="btn ghost" data-a="closeSheet">' + T('Отмена', 'Cancel') + '</button>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+/* ---------- actions ---------- */
+const A = {
+  go: (el) => { location.hash = el.dataset.x; },
+  lang: (el) => { S.lang = el.dataset.x; document.documentElement.lang = S.lang; save(); render(); },
+  setUi: (el) => { const [k, v] = el.dataset.x.split('|'); ui[k] = v; render(); },
+  setProfile: (el) => { const [k, v] = el.dataset.x.split('|'); S.profile[k] = v; save(); render(); },
+  toggleRole: (el) => { const r = el.dataset.x, a = S.profile.roles; const i = a.indexOf(r); if (i >= 0) a.splice(i, 1); else a.push(r); save(); render(); },
+  toggleSkill: (el) => { const k = el.dataset.x, a = S.profile.skills; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); save(); render(); },
+  toggleFood: (el) => { const k = el.dataset.x; let a = S.profile.food; if (k === 'all') a = a.includes('all') ? [] : ['all']; else { a = a.filter((x) => x !== 'all'); a = a.includes(k) ? a.filter((x) => x !== k) : a.concat(k); } S.profile.food = a; save(); render(); },
+  onbNext: () => {
+    const p = S.profile; const o = ui.onb;
+    if (o.step === 1 && !p.name.trim()) { toast(T('Напиши, как тебя зовут', 'Tell us your name')); $('[data-b="profile.name"]')?.focus(); return; }
+    if (o.step === 1 && !p.roles.length && !p.ownRole.trim()) { toast(T('Выбери хотя бы одну роль', 'Pick at least one role')); return; }
+    const clientOnly = p.roles.length > 0 && !p.ownRole && p.roles.every((r) => CLIENT_ROLES.includes(r));
+    o.step = clientOnly && o.step === 1 ? 4 : o.step + 1; window.scrollTo(0, 0); render();
+  },
+  onbBack: () => { const p = S.profile; const o = ui.onb; const clientOnly = p.roles.length > 0 && !p.ownRole && p.roles.every((r) => CLIENT_ROLES.includes(r)); o.step = clientOnly && o.step === 4 ? 1 : Math.max(1, o.step - 1); window.scrollTo(0, 0); render(); },
+  finishOnb: () => { S.profile.onboarded = true; save(); ui.onb = null; location.hash = '#/today'; render(); },
+  editProfile: () => { ui.onb = { step: 1 }; location.hash = '#/welcome'; },
+  demo: () => { loadDemo(); toast(T('Пример добавлен', 'Example added')); location.hash = '#/today'; render(); },
+  createShoot: () => {
+    const k = ui.newKind; if (!k) return;
+    const s = newShoot(k, { client: $('#nfClient')?.value.trim() || '', what: $('#nfWhat')?.value.trim() || '', date: $('#nfDate')?.value || '' });
+    const call = normTime($('#nfCall')?.value); if (call && s.timing.length) { const shift = mins(call) - mins(s.call); if (shift) s.timing.forEach((x) => { const m = mins(x.t); if (m != null) { const n = m + shift; x.t = pad(Math.floor(((n % 1440) + 1440) % 1440 / 60)) + ':' + pad(((n % 60) + 60) % 60); } }); const e = mins(s.end); if (e != null) { const n = e + shift; s.end = pad(Math.floor(n / 60) % 24) + ':' + pad(n % 60); } s.call = call; }
+    if (k === 'custom' && ui.newMods) s.modules = { ...ui.newMods };
+    S.shoots.push(s); save(); ui.newKind = null; ui.newMods = null; location.hash = '#/p/' + s.id;
+  },
+  toggleNewMod: (el) => { ui.newMods[el.dataset.x] = !ui.newMods[el.dataset.x]; render(); },
+  toggleCheck: (el) => { const s = getShoot(el.dataset.s); const c = s.checklist.find((x) => x.id === el.dataset.x); c.done = !c.done; save(); render(); },
+  addCheck: (el) => { const s = getShoot(el.dataset.s); const v = $('#newCheck').value.trim(); if (!v) return; s.checklist.push({ id: uid(), text: v, done: false }); save(); render(); $('#newCheck')?.focus(); },
+  delRow: (el) => { const s = getShoot(el.dataset.s); const [arr, id] = el.dataset.x.split('|'); if (arr === 'looks' && !confirm(T('Удалить образ?', 'Delete this look?'))) return; s[arr] = s[arr].filter((x) => x.id !== id); save(); render(); },
+  addTiming: (el) => { const s = getShoot(el.dataset.s); const last = [...s.timing].sort((a, c) => (mins(c.t) ?? 0) - (mins(a.t) ?? 0))[0]; const m = last ? (mins(last.t) ?? 600) + 30 : mins(s.call) ?? 600; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60), w: '' }); save(); render(); },
+  addLunch: (el) => { const s = getShoot(el.dataset.s); const a = mins(s.call) ?? 600, b = mins(s.end) ?? a + 480; const m = Math.round((a + (b - a) / 2) / 30) * 30; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60)) + ':' + pad(m % 60), w: T('Обед для команды', 'Team lunch') }); const f = teamFood(s); save(); toast(T('Обед добавлен в тайминг', 'Lunch added') + (f ? ' · ' + f : '')); render(); },
+  tab: (el) => { location.hash = '#/p/' + el.dataset.s + '/' + (el.dataset.x || 'main'); },
+  shareTeam: (el) => { const s = getShoot(el.dataset.s); shareSheet(T('Команде', 'To the team'), teamText(s)); },
+  shareClientGuide: (el) => { const s = getShoot(el.dataset.s); const c = s.checklist.find((x) => /памятка|guide/i.test(x.text)); if (c) { c.done = true; save(); } shareSheet(T('Памятка клиенту', 'Client guide'), guideText(s)); },
+  invitePerson: (el) => { const s = getShoot(el.dataset.s); const m = s.team.find((x) => x.id === el.dataset.x); if (!m.status) { m.status = 'asked'; save(); } ui.sheet = { type: 'share', title: m.name, text: personText(s, m), phone: S.people.find((p) => p.id === m.pid)?.phone }; render(); },
+  shareTo: async (el) => {
+    const text = $('#shareText')?.value || ui.sheet.text; const k = el.dataset.x;
+    if (k === 'copy') return copy(text);
+    if (k === 'native') { try { await navigator.share({ text }); } catch (e) { /* cancelled */ } return; }
+    const url = k === 'tg' ? 'https://t.me/share/url?url=' + encodeURIComponent(' ') + '&text=' + encodeURIComponent(text) : 'https://wa.me/' + (ui.sheet.phone ? String(ui.sheet.phone).replace(/\D/g, '') : '') + '?text=' + encodeURIComponent(text);
+    window.open(url, '_blank', 'noopener');
+  },
+  closeSheet: (el, ev) => { if (el.dataset.self && ev.target !== el) return; closeSheet(); },
+  memberStatus: (el) => { const s = getShoot(el.dataset.s); const [id, st] = el.dataset.x.split('|'); const m = s.team.find((x) => x.id === id); m.status = m.status === st ? '' : st; save(); render(); },
+  editMember: (el) => { const s = getShoot(el.dataset.s); const id = el.dataset.x; const m = id ? s.team.find((x) => x.id === id) : { id: uid(), name: '', role: 'model', call: s.call, rate: '', status: '' }; ui.sheet = { type: 'member', s: s.id, data: { ...m }, isNew: !id }; render(); setTimeout(() => $('#mName')?.focus(), 50); },
+  saveMember: () => {
+    const sh = ui.sheet; const s = getShoot(sh.s); const name = $('#mName').value.trim(); if (!name) { toast(T('Нужно имя', 'Name needed')); return; }
+    const d = { ...sh.data, name, role: $('#mRole').value, call: normTime($('#mCall').value), rate: $('#mRate').value.replace(/[^\d]/g, '') };
+    if (sh.isNew) { let p = S.people.find((x) => x.name.toLowerCase() === name.toLowerCase()); if (!p) { p = { id: uid(), name, role: d.role, phone: $('#mPhone')?.value || '', insta: $('#mInsta')?.value || '', food: [], note: '' }; S.people.push(p); } d.pid = p.id; s.team.push(d); }
+    else { const i = s.team.findIndex((x) => x.id === d.id); s.team[i] = d; }
+    ui.sheet = null; save(); render();
+  },
+  removeMember: () => { const sh = ui.sheet; const s = getShoot(sh.s); s.team = s.team.filter((x) => x.id !== sh.data.id); ui.sheet = null; save(); render(); },
+  pickPeople: (el) => { ui.sheet = { type: 'pick', s: el.dataset.s }; render(); },
+  addFromBase: (el) => { const s = getShoot(ui.sheet.s); const p = S.people.find((x) => x.id === el.dataset.x); s.team.push({ id: uid(), pid: p.id, name: p.name, role: p.role, call: s.call, rate: '', status: '' }); save(); render(); },
+  editPerson: (el) => { const id = el.dataset.x; const p = id ? S.people.find((x) => x.id === id) : { id: uid(), name: '', role: 'model', phone: '', insta: '', food: [], note: '' }; ui.sheet = { type: 'person', data: JSON.parse(JSON.stringify(p)), isNew: !id }; render(); },
+  togglePFood: (el) => { const d = ui.sheet.data; d.food = d.food || []; const k = el.dataset.x; d.food = d.food.includes(k) ? d.food.filter((x) => x !== k) : d.food.concat(k); keepSheetInputs(['pName', 'pPhone', 'pInsta', 'pNote']); render(); },
+  savePerson: () => {
+    const sh = ui.sheet; const name = $('#pName').value.trim(); if (!name) { toast(T('Нужно имя', 'Name needed')); return; }
+    const d = { ...sh.data, name, role: $('#pRole').value, phone: $('#pPhone').value, insta: $('#pInsta').value, note: $('#pNote').value };
+    if (sh.isNew) S.people.push(d); else { const i = S.people.findIndex((x) => x.id === d.id); S.people[i] = d; S.shoots.forEach((s) => s.team.forEach((m) => { if (m.pid === d.id) m.name = d.name; })); }
+    ui.sheet = null; save(); render();
+  },
+  deletePerson: () => { if (!confirm(T('Удалить из базы? Из прошлых проектов человек не пропадёт.', 'Delete? Past projects keep the name.'))) return; S.people = S.people.filter((x) => x.id !== ui.sheet.data.id); ui.sheet = null; save(); render(); },
+  copyText: (el) => copy(el.dataset.x),
+  addLook: (el) => { const s = getShoot(el.dataset.s); s.looks.push({ id: uid(), name: '', model: '', clothes: '', makeup: '', hair: '', mua: '', ref: '', done: false }); save(); render(); setTimeout(() => { const all = document.querySelectorAll('[aria-label="' + T('Название образа', 'Look name') + '"]'); all[all.length - 1]?.focus(); }, 30); },
+  toggleLook: (el) => { const s = getShoot(el.dataset.s); const l = s.looks.find((x) => x.id === el.dataset.x); l.done = !l.done; save(); render(); },
+  addBudget: (el) => { const s = getShoot(el.dataset.s); s.budget.lines.push({ id: uid(), label: '', sum: '' }); save(); render(); },
+  delBudget: (el) => { const s = getShoot(el.dataset.s); s.budget.lines = s.budget.lines.filter((x) => x.id !== el.dataset.x); save(); render(); },
+  shareBudget: (el) => { const s = getShoot(el.dataset.s); const total = s.budget.lines.reduce((a, x) => a + num(x.sum), 0); const text = T('Смета · ', 'Budget · ') + titleOf(s) + (s.date ? ' · ' + fmtDate(s.date) : '') + '\n\n' + s.budget.lines.filter((x) => x.label || num(x.sum)).map((x) => x.label + ' — ' + money(num(x.sum)) + ' ₽').join('\n') + '\n\n' + T('Итого: ', 'Total: ') + money(total) + ' ₽' + (s.rights ? '\n' + T('Права: ', 'Rights: ') + s.rights : '') + (s.retouch ? '\n' + T('Ретушь: ', 'Retouch: ') + s.retouch : '') + (s.budget.note ? '\n\n' + s.budget.note : ''); shareSheet(T('Смета заказчику', 'Budget to client'), text); },
+  print: () => window.print(),
+  memberPaid: (el) => { const s = getShoot(el.dataset.s); const m = s.team.find((x) => x.id === el.dataset.x); m.paid = !m.paid; save(); render(); },
+  myShifts: (el) => { const s = getShoot(el.dataset.s); s.my.shifts = Math.max(1, (Number(s.my.shifts) || 1) + Number(el.dataset.x)); save(); render(); },
+  myFlag: (el) => { const s = getShoot(el.dataset.s); s.my[el.dataset.x] = !s.my[el.dataset.x]; save(); render(); },
+  finishShoot: (el) => { const s = getShoot(el.dataset.s); s.status = 'done'; if (!s.date) s.date = todayIso(); save(); toast(T('Съёмка в архиве и в доходе', 'Moved to archive and income')); location.hash = '#/me'; },
+  reopen: (el) => { const s = getShoot(el.dataset.s); s.status = 'plan'; save(); render(); },
+  shootMenu: (el) => { ui.sheet = { type: 'menu', s: el.dataset.s }; render(); },
+  dupShoot: () => { const s = getShoot(ui.sheet.s); const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.date = ''; c.status = 'plan'; c.what = (c.what || '') + T(' (копия)', ' (copy)'); c.team.forEach((m) => { m.id = uid(); m.status = ''; m.paid = false; }); c.looks.forEach((l) => { l.id = uid(); l.done = false; }); c.checklist.forEach((x) => { x.id = uid(); x.done = false; }); c.my = { ...c.my, paid: false, check: false, fee: '' }; S.shoots.push(c); ui.sheet = null; save(); location.hash = '#/p/' + c.id; },
+  deleteShoot: () => { if (!confirm(T('Удалить съёмку целиком?', 'Delete this shoot?'))) return; S.shoots = S.shoots.filter((x) => x.id !== ui.sheet.s); ui.sheet = null; save(); location.hash = '#/projects'; },
+  calMove: (el) => { const c = ui.cal; c.m += Number(el.dataset.x); if (c.m < 0) { c.m = 11; c.y--; } if (c.m > 11) { c.m = 0; c.y++; } ui.calSel = null; render(); },
+  calPick: (el) => { ui.calSel = el.dataset.x && ui.calSel !== el.dataset.x ? el.dataset.x : null; render(); },
+  ownSheet: (el) => { const s = newShoot('custom', { src: 'own', date: el.dataset.x || todayIso(), call: '10:00', end: '', modules: { team: false, timing: false, looks: false, budget: false, print: false } }); s.my.fee = ''; ui.sheet = { type: 'own', data: s, isNew: true }; render(); },
+  editIncome: (el) => { const s = getShoot(el.dataset.x); ui.sheet = { type: s.src === 'own' ? 'own' : 'income', data: JSON.parse(JSON.stringify(s)), isNew: false }; render(); },
+  sheetShift: (el) => { const d = ui.sheet.data; d.my.shifts = Math.max(1, (Number(d.my.shifts) || 1) + Number(el.dataset.x)); $('#oShifts').textContent = d.my.shifts; },
+  sheetFlag: (el) => { const d = ui.sheet.data; keepOwnInputs(); d.my[el.dataset.x] = !d.my[el.dataset.x]; render(); },
+  saveOwn: () => {
+    keepOwnInputs(); const d = ui.sheet.data;
+    if (d.src === 'own' && !d.date) { toast(T('Укажи дату', 'Set a date')); return; }
+    const i = S.shoots.findIndex((x) => x.id === d.id);
+    if (i >= 0) S.shoots[i] = d; else S.shoots.push(d);
+    save(); toast(T('Сохранено', 'Saved')); closeSheet();
+  },
+  deleteOwn: () => { if (!confirm(T('Удалить эту съёмку?', 'Delete this shoot?'))) return; S.shoots = S.shoots.filter((x) => x.id !== ui.sheet.data.id); save(); closeSheet(); },
+  exportCsv: () => {
+    const rows = [[T('Дата', 'Date'), T('Съёмка', 'Shoot'), T('Роль', 'Role'), T('Смен', 'Shifts'), T('Сумма', 'Amount'), T('Оплачено', 'Paid'), T('Чек', 'Receipt'), T('Источник', 'Source'), T('Заметка', 'Note')]];
+    myEntries().forEach((s) => rows.push([s.date, titleOf(s), roleName(s.my.role), s.my.shifts, num(s.my.fee), s.my.paid ? 1 : 0, s.my.check ? 1 : 0, s.src === 'own' ? 'own' : 'SET', s.my.note || '']));
+    const csv = '﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
+    download('set-income-' + todayIso() + '.csv', csv, 'text/csv');
+  },
+  exportJson: () => download('set-backup-' + todayIso() + '.json', JSON.stringify(S, null, 1), 'application/json'),
+  importJson: () => $('#importFile').click(),
+  wipe: () => { if (!confirm(T('Точно удалить все съёмки, людей и профиль? Это нельзя отменить.', 'Delete everything? This cannot be undone.'))) return; localStorage.removeItem(KEY); S = fresh(); ui.onb = null; location.hash = '#/welcome'; render(); }
+};
+function closeSheet() { ui.sheet = null; if (location.hash.startsWith('#/own')) location.hash = '#/calendar'; else render(); }
+function keepSheetInputs(ids) { const d = ui.sheet.data; const map = { pName: 'name', pPhone: 'phone', pInsta: 'insta', pNote: 'note' }; ids.forEach((i) => { const e = $('#' + i); if (e) d[map[i]] = e.value; }); }
+function keepOwnInputs() {
+  const d = ui.sheet.data; const g = (i) => $('#' + i);
+  if (g('oTitle')) { const v = g('oTitle').value.trim(); const parts = v.split(' · '); d.client = parts.length > 1 ? parts.shift() : ''; d.what = parts.join(' · '); }
+  if (g('oDate')) d.date = g('oDate').value;
+  if (g('oCall')) d.call = normTime(g('oCall').value);
+  if (g('oRole')) d.my.role = g('oRole').value;
+  if (g('oFee')) d.my.fee = g('oFee').value.replace(/[^\d]/g, '');
+  if (g('oNote')) d.my.note = g('oNote').value;
+}
+function download(name, text, type) {
+  const blob = new Blob([text], { type }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/* ---------- demo ---------- */
+function loadDemo() {
+  const t = new Date();
+  const dIso = (n) => { const d = new Date(t); d.setDate(d.getDate() + n); return isoOf(d); };
+  const P = (name, role, insta, food) => { const p = { id: uid(), name, role, phone: '', insta, food: food || [], note: '' }; S.people.push(p); return p; };
+  const ola = P('Оля Смирнова', 'photo', '@ola.ph'), karina = P('Карина', 'mua', '@karina.mua', ['nomeat']), mila = P('Мила', 'model', '@mila.m'), sasha = P('Саша', 'model', '@sasha.models', ['lactose']), lena = P('Лена', 'stylist', '@lena.style'), dima = P('Дима', 'light', '');
+  const M = (p, call, rate, status) => ({ id: uid(), pid: p.id, name: p.name, role: p.role, call, rate, status, paid: false });
+  const b = newShoot('brand', { client: T('Марта', 'Marta'), what: T('лукбук', 'lookbook'), date: dIso(3), place: T('Студия Свет', 'Studio Light'), address: T('ул. Пушкина, 12, 3 этаж, зал «Белый»', '12 Pushkin St, 3rd floor') });
+  b.team = [M(ola, '09:00', '25000', 'yes'), M(karina, '08:45', '12000', 'yes'), M(mila, '09:15', '15000', 'asked'), M(sasha, '10:30', '15000', ''), M(lena, '08:30', '12000', 'yes'), M(dima, '08:30', '8000', 'yes')];
+  b.looks = [['Нежный беж', 'Мила', 'льняной костюм, лоферы'], ['Город', 'Саша', 'тренч, джинсы'], ['Вечер', 'Мила', 'шёлковое платье'], ['Выходной', 'Саша', 'трикотаж, кеды']].map((x) => ({ id: uid(), name: x[0], model: x[1], clothes: x[2], makeup: T('нюд', 'nude'), hair: T('гладкий пучок', 'sleek bun'), mua: 'Карина', ref: '', done: false }));
+  b.checklist.slice(0, 4).forEach((c) => { c.done = true; });
+  b.budget.lines.forEach((x, i) => { x.sum = String([18000, 25000, 30000, 12000, 12000, 6000, 20000, 35000][i] || ''); });
+  b.rights = T('1 год · онлайн · Россия', '1 year · online'); b.my.fee = '35000'; b.my.role = 'producer';
+  const pe = newShoot('personal', { client: T('Анна К.', 'Anna K.'), what: T('портрет', 'portrait'), date: dIso(7), place: T('Студия Свет', 'Studio Light'), address: T('ул. Пушкина, 12', '12 Pushkin St') });
+  pe.team = [M(ola, '11:00', '10000', 'yes'), M(karina, '10:30', '5000', 'asked')]; pe.my.fee = '12000';
+  const cr = newShoot('creative', { what: T('шёлк', 'silk'), date: dIso(14) }); cr.team = [M(ola, '12:00', '', 'yes'), M(mila, '12:00', '', 'yes')]; cr.my.fee = '0'; cr.my.role = 'model';
+  const past1 = newShoot('brand', { client: T('Кофейня Зерно', 'Grain Café'), what: T('меню', 'menu'), date: dIso(-5), status: 'done' }); past1.my = { role: 'producer', fee: '25000', shifts: 1, paid: true, check: true, note: '' };
+  const past2 = newShoot('custom', { src: 'own', client: T('Шоурум Лён', 'Linen showroom'), what: T('лукбук', 'lookbook'), date: dIso(-12), modules: { team: false, timing: false, looks: false, budget: false, print: false } }); past2.my = { role: 'model', fee: '15000', shifts: 1, paid: false, check: false, note: '' };
+  const past3 = newShoot('custom', { src: 'own', client: T('Каталог Дом и сад', 'Home & Garden'), what: T('каталог', 'catalogue'), date: dIso(-30), modules: { team: false, timing: false, looks: false, budget: false, print: false } }); past3.my = { role: 'producer', fee: '40000', shifts: 2, paid: true, check: false, note: '' };
+  S.shoots.push(b, pe, cr, past1, past2, past3);
+  if (!S.profile.name) S.profile.name = T('Ксения', 'Ksenia');
+  save();
+}
+
+/* ---------- router & render ---------- */
+function route() {
+  const h = location.hash || '#/today';
+  const parts = h.replace(/^#\/?/, '').split('/');
+  if (!S.profile.onboarded && parts[0] !== 'welcome') { location.replace('#/welcome'); return null; }
+  return parts;
+}
+let lastHash = '';
+function render() {
+  clearTimeout(window._rt);
+  const parts = route(); if (!parts) return;
+  const keep = location.hash === lastHash ? window.scrollY : 0;
+  const active = document.activeElement; const activeB = active?.dataset?.b; const selStart = active?.selectionStart;
+  let html = '';
+  const [a, b, c] = parts;
+  if (a === 'welcome') html = vWelcome();
+  else if (a === 'today' || a === '') html = vToday();
+  else if (a === 'calendar') html = vCalendar();
+  else if (a === 'projects') html = vProjects();
+  else if (a === 'new') html = vNew();
+  else if (a === 'people') html = vPeople();
+  else if (a === 'me') html = vMe();
+  else if (a === 'settings') html = vSettings();
+  else if (a === 'own') { const s = getShoot(b); if (s && !ui.sheet) ui.sheet = { type: 'own', data: JSON.parse(JSON.stringify(s)), isNew: false }; html = vCalendar(); }
+  else if (a === 'p' && c === 'print') html = vPrint(b);
+  else if (a === 'p' && c === 'onset') html = vOnSet(b);
+  else if (a === 'p' && c === 'wrap') html = vWrap(b);
+  else if (a === 'p') html = vProject(b, c);
+  else html = vNotFound();
+  document.body.style.background = a === 'p' && c === 'onset' ? '#1A1A22' : '';
+  $('#app').innerHTML = html + vSheet();
+  if (location.hash === lastHash) window.scrollTo(0, keep); else window.scrollTo(0, 0);
+  lastHash = location.hash;
+  if (activeB) { const e = document.querySelector('[data-b="' + CSS.escape(activeB) + '"]'); if (e) { e.focus(); try { if (selStart != null) e.setSelectionRange(selStart, selStart); } catch (x) { /* date inputs */ } } }
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest('[data-a]');
+  if (!el) return;
+  const fn = A[el.dataset.a];
+  if (fn) { if (el.tagName === 'BUTTON' || (el.dataset.self && ev.target === el)) ev.preventDefault(); fn(el, ev); }
+});
+document.addEventListener('input', (ev) => {
+  const el = ev.target; const b = el.dataset.b;
+  if (b) { setPath(b, el.value); if (el.dataset.live) { clearTimeout(el._t); el._t = setTimeout(render, 120); } }
+});
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (el.dataset.time) el.value = normTime(el.value);
+  if (el.dataset.b) { setPath(el.dataset.b, el.value); if (el.dataset.r) { clearTimeout(window._rt); window._rt = setTimeout(render, 250); } }
+  if (el.id === 'oDate' && ui.sheet) { keepOwnInputs(); render(); }
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && ev.target.dataset.enter) { ev.preventDefault(); A[ev.target.dataset.enter](ev.target); }
+  if (ev.key === 'Escape' && ui.sheet) closeSheet();
+});
+$('#importFile').addEventListener('change', (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { const x = JSON.parse(r.result); if (x.v !== 1 || !Array.isArray(x.shoots)) throw new Error('bad'); if (!confirm(T('Заменить текущие данные копией?', 'Replace current data with the backup?'))) return; S = Object.assign(fresh(), x); save(); toast(T('Копия загружена', 'Backup restored')); location.hash = '#/today'; render(); } catch (e) { toast(T('Это не похоже на копию SET', 'This is not a SET backup')); } };
+  r.readAsText(f); ev.target.value = '';
+});
+window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/own')) ui.sheet = null; render(); });
+document.documentElement.lang = S.lang;
+render();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
