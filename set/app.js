@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.1 beta';
+const VERSION = '0.9.2 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -121,7 +121,7 @@ function newShoot(kind, o = {}) {
     id: uid(), src: 'set', kind, client: '', what: '', date: '', call: '10:00', end: '18:00', place: '', address: '', notes: '',
     timing: [], team: [], looks: [], checklist: [],
     budget: { lines: [], note: '' }, rights: '', deliver: '', retouch: '',
-    modules: { team: true, timing: true, looks: kind !== 'personal', budget: kind === 'brand' || kind === 'custom', print: true },
+    modules: { team: true, timing: true, mood: true, looks: kind !== 'personal', budget: kind === 'brand' || kind === 'custom', print: true },
     my: { role: S.profile.roles[0] || 'producer', fee: '', shifts: 1, paid: false, check: false, note: '' },
     onset: { idx: 0 }, status: 'plan', created: Date.now()
   };
@@ -129,22 +129,27 @@ function newShoot(kind, o = {}) {
   const ck = (arr) => arr.map((text) => ({ id: uid(), text, done: false }));
   if (kind === 'brand') {
     s.call = '09:00'; s.end = '19:00';
-    s.timing = tl([['09:00', T('Сбор, кофе, распаковка вещей', 'Call, coffee, unpack')], ['09:30', T('Грим и волосы', 'Make-up and hair')], ['11:00', T('Образ 01', 'Look 01')], ['13:00', T('Обед', 'Lunch')], ['14:00', T('Образы дальше по списку', 'Looks continue')], ['18:30', T('Сбор вещей, возврат', 'Pack up, returns')], ['19:00', T('Конец, сдаём студию', 'Wrap, studio out')]]);
+    s._tpl = tl([['09:00', T('Сбор, кофе, распаковка вещей', 'Call, coffee, unpack')], ['09:30', T('Грим и волосы', 'Make-up and hair')], ['11:00', T('Образ 01', 'Look 01')], ['13:00', T('Обед', 'Lunch')], ['14:00', T('Образы дальше по списку', 'Looks continue')], ['18:30', T('Сбор вещей, возврат', 'Pack up, returns')], ['19:00', T('Конец, сдаём студию', 'Wrap, studio out')]]);
     s.checklist = ck([T('Бриф от бренда', 'Brief from the brand'), T('Мудборд согласован', 'Moodboard approved'), T('Смета согласована', 'Budget approved'), T('Студия забронирована', 'Studio booked'), T('Модели подтвердили', 'Models confirmed'), T('Вещи у стилиста', 'Clothes with the stylist'), T('Права на фото и срок — договорились', 'Usage rights and term agreed'), T('Договор или акт', 'Contract or invoice')]);
     s.budget.lines = [{ id: uid(), label: T('Студия', 'Studio'), sum: '' }, { id: uid(), label: T('Фотограф', 'Photographer'), sum: '' }, { id: uid(), label: T('Модели', 'Models'), sum: '' }, { id: uid(), label: T('Визажист', 'Make-up'), sum: '' }, { id: uid(), label: T('Стилист', 'Stylist'), sum: '' }, { id: uid(), label: T('Еда на площадку', 'Catering'), sum: '' }, { id: uid(), label: T('Ретушь', 'Retouching'), sum: '' }, { id: uid(), label: T('Продюсирование', 'Production fee'), sum: '' }];
     s.retouch = T('40 кадров · 2 круга правок', '40 frames · 2 rounds');
   } else if (kind === 'personal') {
     s.call = '11:00'; s.end = '14:00';
-    s.timing = tl([['11:00', T('Мейк и волосы', 'Make-up and hair')], ['12:00', T('Съёмка', 'Shooting')], ['14:00', T('Конец', 'Wrap')]]);
+    s._tpl = tl([['11:00', T('Мейк и волосы', 'Make-up and hair')], ['12:00', T('Съёмка', 'Shooting')], ['14:00', T('Конец', 'Wrap')]]);
     s.checklist = ck([T('Предоплата получена', 'Deposit received'), T('Клиенту отправлена памятка «как подготовиться»', 'Prep guide sent to the client'), T('Образы обсудили', 'Outfits discussed'), T('Студия или место', 'Studio or location'), T('Сколько фото и когда — договорились', 'Number of photos and delivery agreed')]);
     s.deliver = T('через 7 дней', 'in 7 days');
   } else if (kind === 'creative') {
     s.call = '12:00'; s.end = '16:00'; s.client = 'TFP';
-    s.timing = tl([['12:00', T('Сбор', 'Call')], ['12:30', T('Мейк', 'Make-up')], ['13:30', T('Съёмка', 'Shooting')], ['16:00', T('Конец', 'Wrap')]]);
+    s._tpl = tl([['12:00', T('Сбор', 'Call')], ['12:30', T('Мейк', 'Make-up')], ['13:30', T('Съёмка', 'Shooting')], ['16:00', T('Конец', 'Wrap')]]);
     s.checklist = ck([T('Мудборд на 5–6 кадров', 'Moodboard of 5–6 images'), T('Договорились, кто где публикует и отмечает', 'Agreed who posts where and credits'), T('Похожий уровень команды', 'Similar level across the team'), T('Аренду делим поровну', 'Studio cost split'), T('Когда отдаём кадры', 'When we share the photos')]);
   }
+  s._tplCall = s.call;
   Object.assign(s, o);
   return s;
+}
+function applyTemplate(s) {
+  const shift = (mins(s.call) ?? 0) - (mins(s._tplCall) ?? mins(s.call) ?? 0);
+  return (s._tpl || []).map((x) => { const m = mins(x.t); const n = m == null ? null : (((m + shift) % 1440) + 1440) % 1440; return { id: uid(), t: n == null ? x.t : pad(Math.floor(n / 60)) + ':' + pad(n % 60), w: x.w }; });
 }
 
 function hints(s) {
@@ -361,8 +366,8 @@ function vNew() {
     h += '<button class="card glow-' + K.glow + '" data-a="setUi" data-x="newKind|' + k + '" aria-pressed="' + (n === k) + '" style="text-align:left;border:2px solid ' + (n === k ? 'var(--ink)' : 'transparent') + '"><div class="row between"><h2>' + esc(L() === 'en' ? K.en : K.ru) + '</h2>' + (n === k ? '<span class="check on">✓</span>' : '') + '</div><span class="small">' + esc(K.sub[L() === 'en' ? 1 : 0]) + '</span></button>';
   });
   if (n === 'custom') {
-    const m = ui.newMods || (ui.newMods = { team: true, timing: true, looks: true, budget: false, print: true });
-    h += '<div class="card tight">' + [['timing', T('Тайминг', 'Schedule')], ['team', T('Команда', 'Team')], ['looks', T('Образы', 'Looks')], ['budget', T('Смета', 'Budget')], ['print', T('Распечатка', 'Print sheet')]].map(([k, l]) => sw(l, '', m[k], 'toggleNewMod', k)).join('') + '</div>';
+    const m = ui.newMods || (ui.newMods = { mood: true, team: true, timing: true, looks: true, budget: false, print: true });
+    h += '<div class="card tight">' + [['mood', T('Мудборд', 'Moodboard')], ['timing', T('Тайминг', 'Schedule')], ['team', T('Команда', 'Team')], ['looks', T('Образы', 'Looks')], ['budget', T('Смета', 'Budget')], ['print', T('Распечатка', 'Print sheet')]].map(([k, l]) => sw(l, '', m[k], 'toggleNewMod', k)).join('') + '</div>';
   }
   if (n) {
     h += '<div class="card"><div class="grid2">' + field(n === 'personal' ? T('Клиент', 'Client') : n === 'creative' ? T('Название', 'Title') : T('Бренд / клиент', 'Brand / client'), '<input class="inp" id="nfClient" placeholder="' + (n === 'personal' ? T('Анна К.', 'Anna K.') : n === 'creative' ? 'TFP' : T('Марта', 'Brand')) + '" value="' + (n === 'creative' ? 'TFP' : '') + '">') + field(T('Что снимаем', 'What'), '<input class="inp" id="nfWhat" placeholder="' + (n === 'personal' ? T('портрет', 'portrait') : T('лукбук', 'lookbook')) + '">') + '</div>' +
@@ -379,6 +384,7 @@ function vProject(id, tab) {
   if (s.src === 'own') { location.hash = '#/me'; return ''; }
   tab = tab || 'main';
   const tabs = [['main', T('Главное', 'Overview')]];
+  if (s.modules.mood !== false) tabs.push(['mood', T('Мудборд', 'Moodboard') + ((s.mood || []).length ? ' · ' + s.mood.length : '')]);
   if (s.modules.timing) tabs.push(['timing', T('Тайминг', 'Schedule')]);
   if (s.modules.team) tabs.push(['team', T('Команда', 'Team') + ' · ' + s.team.length]);
   if (s.modules.looks) tabs.push(['looks', T('Образы', 'Looks') + ' · ' + s.looks.length]);
@@ -387,7 +393,8 @@ function vProject(id, tab) {
   h += '<div class="col pad4" style="gap:4px"><span class="kicker">' + (s.date ? fmtDate(s.date, { wd: true }) + ' · ' + relDay(s.date) : T('дата не выбрана', 'no date yet')) + '</span><h1 style="font-size:40px">' + esc(titleOf(s)) + '</h1></div>';
   h += '<div class="seg">' + tabs.map(([k, l]) => chip(l, tab === k, 'go', '#/p/' + s.id + '/' + k)).join('') + '</div>';
   if (tab === 'main') h += pMain(s);
-  if (tab === 'timing') h += pTiming(s);
+  if (tab === 'timing') h += pTiming(s) + pTimingClear(s);
+  if (tab === 'mood') h += pMood(s);
   if (tab === 'team') h += pTeam(s);
   if (tab === 'looks') h += pLooks(s);
   if (tab === 'budget') h += pBudget(s);
@@ -422,15 +429,18 @@ function pMain(s) {
 }
 function pTiming(s) {
   const b = 'shoot:' + s.id;
-  let h = '<div class="row between pad4"><span class="small muted">' + T('Длительность', 'Duration') + ': <b class="mono">' + (durationH(s) ? durationH(s).toFixed(1).replace('.0', '') + T(' ч', 'h') : '—') + '</b></span>' + (durationH(s) > 5 && !hasMeal(s) ? '<span class="badge warn">' + T('нужен обед', 'add lunch') + '</span>' : '') + '</div>';
+  let h = '';
+  if (!s.timing.length && s._tpl && s._tpl.length) { const pv = applyTemplate(s); h += '<div class="card glow-sky"><h3>' + T('Нужна заготовка?', 'Want a starting point?') + '</h3><span class="small">' + T('Типичный день для такой съёмки от твоего сбора. Подставь и поправь под себя — или пиши с нуля.', 'A typical day for this kind of shoot, from your call time. Use it and edit, or start from scratch.') + '</span><div class="col" style="gap:2px">' + pv.map((x) => '<span class="small"><b class="mono">' + esc(x.t) + '</b> ' + esc(x.w) + '</span>').join('') + '</div><button class="btn sm" data-a="useTemplate" data-s="' + s.id + '">' + T('Подставить заготовку', 'Use this') + '</button></div>'; }
+  h += '<div class="row between pad4"><span class="small muted">' + T('Длительность', 'Duration') + ': <b class="mono">' + (durationH(s) ? durationH(s).toFixed(1).replace('.0', '') + T(' ч', 'h') : '—') + '</b></span>' + (durationH(s) > 5 && !hasMeal(s) ? '<span class="badge warn">' + T('нужен обед', 'add lunch') + '</span>' : '') + '</div>';
   h += '<div class="card tight">';
   const rows = sortedTiming(s);
   rows.forEach((x) => { h += '<div class="tl">' + inp(b + '.timing:' + x.id + '.t', x.t, { type: 'time', r: true, aria: T('Время', 'Time'), style: 'padding:0 8px;font-size:15px' }) + '<input class="inp" data-b="' + b + '.timing:' + x.id + '.w" value="' + esc(x.w) + '" aria-label="' + T('Что происходит', 'What happens') + '"><button class="textbtn" data-a="delRow" data-s="' + s.id + '" data-x="timing|' + x.id + '" aria-label="' + T('Удалить', 'Delete') + '">' + I.x.replace('<svg', '<svg width="16" height="16"') + '</button></div>'; });
-  if (!rows.length) h += '<div class="empty">' + T('Пока пусто', 'Empty') + '</div>';
+  if (!rows.length) h += '<div class="empty">' + T('Тайминг пустой — впиши свой по строчкам.', 'Empty — add your own rows.') + '</div>';
   h += '</div><div class="grid2"><button class="btn soft" data-a="addTiming" data-s="' + s.id + '">' + T('+ Строка', '+ Row') + '</button>' + (!hasMeal(s) ? '<button class="btn soft" data-a="addLunch" data-s="' + s.id + '">' + T('+ Обед', '+ Lunch') + '</button>' : '<span></span>') + '</div>';
   h += (mins(s.end) != null && mins(s.call) != null && mins(s.end) < mins(s.call) ? '<span class="small pad4">' + T('Съёмка через полночь: конец ' + esc(s.end) + ' — уже следующего дня. Тайминг идёт по порядку от сбора.', 'Overnight shoot: wrap at ' + esc(s.end) + ' is the next day.') + '</span>' : '') + '<span class="tiny muted pad4">' + T('Совет: дольше 5 часов — кормим команду. Дольше 10 — это переработка.', 'Tip: over 5 hours — feed the team. Over 10 — overtime.') + '</span>';
   return h;
 }
+function pTimingClear(s) { return s.timing.length ? '<button class="textbtn" data-a="clearTiming" data-s="' + s.id + '">' + T('Очистить тайминг', 'Clear schedule') + '</button>' : ''; }
 function pTeam(s) {
   let h = '';
   const st = { yes: [T('идёт', 'in'), 'ok'], no: [T('не может', 'out'), ''], asked: [T('позвала', 'asked'), 'warn'], '': [T('не звала', 'not asked'), ''] };
@@ -454,6 +464,7 @@ function pLooks(s) {
   s.looks.forEach((l, i) => {
     const b = 'shoot:' + s.id + '.looks:' + l.id;
     h += '<div class="card ' + (i % 2 ? 'glow-sky' : 'glow-pink') + '"><div class="row between"><span class="look-num">' + T('Образ', 'Look') + ' ' + pad(i + 1) + '</span><div class="row"><button class="chip sm" aria-pressed="' + !!l.done + '" data-a="toggleLook" data-s="' + s.id + '" data-x="' + l.id + '">' + (l.done ? T('✓ снят', '✓ shot') : T('не снят', 'to shoot')) + '</button><button class="textbtn" data-a="delRow" data-s="' + s.id + '" data-x="looks|' + l.id + '" aria-label="' + T('Удалить образ', 'Delete look') + '">' + I.trash.replace('<svg', '<svg width="18" height="18"') + '</button></div></div>' +
+      (l.img ? '<div style="position:relative">' + imgTag(l.img, 'width:100%;max-height:320px;object-fit:cover;border-radius:18px;display:block') + '<button class="chip sm" style="position:absolute;right:8px;bottom:8px" data-a="delLookImg" data-s="' + s.id + '" data-x="' + l.id + '">' + T('Убрать фото', 'Remove photo') + '</button></div>' : '<button class="btn soft sm" data-a="pickLookImg" data-s="' + s.id + '" data-x="' + l.id + '">' + T('+ Фото образа или референс', '+ Look photo or reference') + '</button>') +
       inp(b + '.name', l.name, { ph: T('Название: «Нежный беж»', 'Name: “Soft beige”'), aria: T('Название образа', 'Look name') }) +
       '<div class="grid2">' + field(T('Модель', 'Model'), inp(b + '.model', l.model, { r: true })) + field(T('Мейк делает', 'Make-up by'), inp(b + '.mua', l.mua)) + '</div>' +
       field(T('Одежда', 'Clothes'), inp(b + '.clothes', l.clothes, { ph: T('платье, туфли, серьги', 'dress, shoes, earrings') })) +
@@ -480,7 +491,9 @@ function printHtml(s) {
   if (s.timing.length) h += '<h3 style="margin-top:16px">' + T('Тайминг', 'Schedule') + '</h3><table><tbody>' + sortedTiming(s).map((x) => '<tr><td style="width:60px;font-family:var(--mono)">' + esc(x.t) + '</td><td>' + esc(x.w) + '</td></tr>').join('') + '</tbody></table>';
   if (s.team.length) h += '<h3 style="margin-top:16px">' + T('Команда', 'Team') + '</h3><table><thead><tr><th>' + T('Имя', 'Name') + '</th><th>' + T('Роль', 'Role') + '</th><th>' + T('Сбор', 'Call') + '</th><th>' + T('Связь', 'Contact') + '</th></tr></thead><tbody>' + s.team.map((m) => '<tr><td>' + esc(m.name) + '</td><td>' + esc(roleName(m.role)) + '</td><td style="font-family:var(--mono)">' + esc(m.call || s.call) + '</td><td>' + esc(S.people.find((p) => p.id === m.pid)?.phone || '') + '</td></tr>').join('') + '</tbody></table>';
   const food = teamFood(s); if (food) h += '<p style="margin-top:10px"><b>' + T('Еда', 'Food') + ':</b> ' + esc(food) + '</p>';
-  if (s.modules.looks && s.looks.length) h += '<h3 class="pb" style="margin-top:16px">' + T('Образы', 'Looks') + '</h3><div class="looks">' + s.looks.map((l, i) => '<div class="look"><div style="font-family:var(--mono);font-size:11px">' + T('ОБРАЗ', 'LOOK') + ' ' + pad(i + 1) + '</div><b style="font-size:15px">' + esc(l.name || '—') + '</b><br>' + T('Модель', 'Model') + ': ' + esc(l.model || '—') + '<br>' + T('Одежда', 'Clothes') + ': ' + esc(l.clothes || '—') + '<br>' + T('Мейк', 'Make-up') + ': ' + esc(l.makeup || '—') + (l.mua ? ' (' + esc(l.mua) + ')' : '') + '<br>' + T('Волосы', 'Hair') + ': ' + esc(l.hair || '—') + '<div style="margin-top:6px">☐ ' + T('снят', 'shot') + '</div></div>').join('') + '</div>';
+  if (s.modules.looks && s.looks.length) h += '<h3 class="pb" style="margin-top:16px">' + T('Образы', 'Looks') + '</h3><div class="looks">' + s.looks.map((l, i) => '<div class="look">' + (l.img ? imgTag(l.img, 'width:100%;height:150px;object-fit:cover;border-radius:6px;margin-bottom:6px') : '') + '<div style="font-family:var(--mono);font-size:11px">' + T('ОБРАЗ', 'LOOK') + ' ' + pad(i + 1) + '</div><b style="font-size:15px">' + esc(l.name || '—') + '</b><br>' + T('Модель', 'Model') + ': ' + esc(l.model || '—') + '<br>' + T('Одежда', 'Clothes') + ': ' + esc(l.clothes || '—') + '<br>' + T('Мейк', 'Make-up') + ': ' + esc(l.makeup || '—') + (l.mua ? ' (' + esc(l.mua) + ')' : '') + '<br>' + T('Волосы', 'Hair') + ': ' + esc(l.hair || '—') + '<div style="margin-top:6px">☐ ' + T('снят', 'shot') + '</div></div>').join('') + '</div>';
+  const mp = (s.mood || []).filter((x) => x.kind === 'img'); const ml = (s.mood || []).filter((x) => x.kind === 'link');
+  if (mp.length || ml.length) h += '<h3 class="pb" style="margin-top:16px">' + T('Мудборд', 'Moodboard') + '</h3><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px">' + mp.map((x) => imgTag(x.id, 'width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px')).join('') + '</div>' + (ml.length ? '<p style="font-size:11px;word-break:break-all">' + ml.map((x) => esc(x.url)).join('<br>') + '</p>' : '');
   if (s.notes) h += '<p style="margin-top:14px;white-space:pre-line"><b>' + T('Заметки', 'Notes') + ':</b> ' + esc(s.notes) + '</p>';
   h += '<div class="foot">' + T('Собрано в SET · смета и ставки на этот лист не попадают', 'Made with SET · budget and rates are never printed') + '</div></div>';
   return h;
@@ -508,7 +521,7 @@ function vOnSet(id) {
   if (!looks.length) h += '<div class="hint"><span class="dot"></span><span>' + T('Добавь образы в проекте — здесь они пойдут по очереди.', 'Add looks in the project — they’ll queue here.') + '</span></div>';
   if (cur) {
     const i = looks.indexOf(cur);
-    h += '<div style="background:radial-gradient(circle at 88% 8%, rgba(244,161,195,0.5), rgba(244,161,195,0.12) 45%, transparent 70%), #232328;border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:8px"><span class="mono small" style="color:#C9C5BB">' + T('СЕЙЧАС · ОБРАЗ ', 'NOW · LOOK ') + pad(i + 1) + '</span><span class="h1" style="font-size:44px">' + esc(cur.name || T('Образ ', 'Look ') + pad(i + 1)) + '</span><span>' + esc([cur.model, cur.clothes].filter(Boolean).join(' · ')) + '</span><span class="small" style="color:#C9C5BB">' + esc([cur.makeup && T('мейк: ', 'make-up: ') + cur.makeup, cur.hair && T('волосы: ', 'hair: ') + cur.hair].filter(Boolean).join(' · ')) + '</span></div>';
+    h += '<div style="background:radial-gradient(circle at 88% 8%, rgba(244,161,195,0.5), rgba(244,161,195,0.12) 45%, transparent 70%), #232328;border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:8px"><span class="mono small" style="color:#C9C5BB">' + T('СЕЙЧАС · ОБРАЗ ', 'NOW · LOOK ') + pad(i + 1) + '</span>' + (cur.img ? imgTag(cur.img, 'width:100%;max-height:300px;object-fit:cover;border-radius:18px;display:block;margin:4px 0') : '') + '<span class="h1" style="font-size:44px">' + esc(cur.name || T('Образ ', 'Look ') + pad(i + 1)) + '</span><span>' + esc([cur.model, cur.clothes].filter(Boolean).join(' · ')) + '</span><span class="small" style="color:#C9C5BB">' + esc([cur.makeup && T('мейк: ', 'make-up: ') + cur.makeup, cur.hair && T('волосы: ', 'hair: ') + cur.hair].filter(Boolean).join(' · ')) + '</span></div>';
     const nx = left[1];
     if (nx) h += '<span class="small pad4" style="color:#9A968C">' + T('Следом: ', 'Then: ') + esc(nx.name || T('образ ', 'look ') + pad(looks.indexOf(nx) + 1)) + (nx.model ? ' · ' + esc(nx.model) + T(' — пора на грим', ' — to make-up') : '') + '</span>';
   } else if (looks.length) {
@@ -698,6 +711,9 @@ function vSheet() {
       '<input class="inp" id="oNote" value="' + esc(s.my.note) + '" placeholder="' + T('Заметка: аванс, переработка', 'Note: advance, overtime') + '">' +
       '<button class="btn big" data-a="saveOwn">' + T('Сохранить', 'Save') + '</button>' + (!sh.isNew && own ? '<button class="btn danger" data-a="deleteOwn">' + T('Удалить', 'Delete') + '</button>' : '') + (!own ? '<a class="btn ghost" href="#/p/' + s.id + '">' + T('Открыть проект', 'Open project') + '</a>' : '');
   }
+  if (sh.type === 'img') {
+    h += '<div class="row between"><h2>' + T('Референс', 'Reference') + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>' + imgTag(sh.id, 'width:100%;border-radius:18px;display:block') + '<button class="btn danger" data-a="delMood" data-s="' + sh.s + '" data-x="' + sh.id + '">' + T('Убрать из мудборда', 'Remove') + '</button>';
+  }
   if (sh.type === 'menu') {
     const s = getShoot(sh.s);
     h += '<h2>' + esc(titleOf(s)) + '</h2><button class="btn soft" data-a="dupShoot">' + T('Дублировать как шаблон', 'Duplicate as template') + '</button><button class="btn soft" data-a="go" data-x="#/p/' + s.id + '/wrap">' + T('После съёмки', 'After the shoot') + '</button><button class="btn danger" data-a="deleteShoot">' + T('Удалить съёмку', 'Delete shoot') + '</button><button class="btn ghost" data-a="closeSheet">' + T('Отмена', 'Cancel') + '</button>';
@@ -729,7 +745,7 @@ const A = {
   createShoot: () => {
     const k = ui.newKind; if (!k) return;
     const s = newShoot(k, { client: $('#nfClient')?.value.trim() || '', what: $('#nfWhat')?.value.trim() || '', date: $('#nfDate')?.value || '' });
-    const call = normTime($('#nfCall')?.value); if (call && s.timing.length) { const shift = mins(call) - mins(s.call); if (shift) s.timing.forEach((x) => { const m = mins(x.t); if (m != null) { const n = m + shift; x.t = pad(Math.floor(((n % 1440) + 1440) % 1440 / 60)) + ':' + pad(((n % 60) + 60) % 60); } }); const e = mins(s.end); if (e != null) { const n = e + shift; s.end = pad(Math.floor(n / 60) % 24) + ':' + pad(n % 60); } s.call = call; }
+    const call = normTime($('#nfCall')?.value); if (call) { const shift = mins(call) - mins(s.call); const e = mins(s.end); if (e != null && shift) { const n = (((e + shift) % 1440) + 1440) % 1440; s.end = pad(Math.floor(n / 60)) + ':' + pad(n % 60); } s.call = call; }
     if (k === 'custom' && ui.newMods) s.modules = { ...ui.newMods };
     S.shoots.push(s); save(); ui.newKind = null; ui.newMods = null; location.hash = '#/p/' + s.id;
   },
@@ -737,6 +753,8 @@ const A = {
   toggleCheck: (el) => { const s = getShoot(el.dataset.s); const c = s.checklist.find((x) => x.id === el.dataset.x); c.done = !c.done; save(); render(); },
   addCheck: (el) => { const s = getShoot(el.dataset.s); const v = $('#newCheck').value.trim(); if (!v) return; s.checklist.push({ id: uid(), text: v, done: false }); save(); render(); $('#newCheck')?.focus(); },
   delRow: (el) => { const s = getShoot(el.dataset.s); const [arr, id] = el.dataset.x.split('|'); if (arr === 'looks' && !confirm(T('Удалить образ?', 'Delete this look?'))) return; s[arr] = s[arr].filter((x) => x.id !== id); save(); render(); },
+  useTemplate: (el) => { const s = getShoot(el.dataset.s); s.timing = applyTemplate(s); save(); render(); },
+  clearTiming: (el) => { if (!confirm(T('Удалить все строки тайминга?', 'Clear the whole schedule?'))) return; const s = getShoot(el.dataset.s); s.timing = []; save(); render(); },
   addTiming: (el) => { const s = getShoot(el.dataset.s); const all = sortedTiming(s); const last = all[all.length - 1]; const m = last && mins(last.t) != null ? mins(last.t) + 30 : mins(s.call) ?? 600; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60), w: '' }); save(); render(); },
   addLunch: (el) => { const s = getShoot(el.dataset.s); const a = mins(s.call) ?? 600; const d = durationH(s) * 60 || 480; const m = (Math.round((a + d / 2) / 30) * 30) % 1440; s.timing.push({ id: uid(), t: pad(Math.floor(m / 60)) + ':' + pad(m % 60), w: T('Обед для команды', 'Team lunch') }); const f = teamFood(s); save(); toast(T('Обед добавлен в тайминг', 'Lunch added') + (f ? ' · ' + f : '')); render(); },
   tab: (el) => { location.hash = '#/p/' + el.dataset.s + '/' + (el.dataset.x || 'main'); },
@@ -773,6 +791,21 @@ const A = {
   },
   deletePerson: () => { if (!confirm(T('Удалить из базы? Из прошлых проектов человек не пропадёт.', 'Delete? Past projects keep the name.'))) return; S.people = S.people.filter((x) => x.id !== ui.sheet.data.id); ui.sheet = null; save(); render(); },
   copyText: (el) => copy(el.dataset.x),
+
+  pickMood: (el) => { mediaTarget = { s: el.dataset.s, kind: 'mood' }; pickFiles(true); },
+  pickLookImg: (el) => { mediaTarget = { s: el.dataset.s, kind: 'look', look: el.dataset.x }; pickFiles(false); },
+  delLookImg: (el) => { const s = getShoot(el.dataset.s); const l = s.looks.find((x) => x.id === el.dataset.x); if (l && l.img) { mDel(l.img); l.img = ''; save(); render(); } },
+  addMoodLink: (el) => { const u = prompt(T('Ссылка на Pinterest, Instagram или папку', 'Link to Pinterest, Instagram or a folder')); if (!u || !u.trim()) return; const s = getShoot(el.dataset.s); s.mood = s.mood || []; s.mood.push({ id: uid(), kind: 'link', url: u.trim() }); save(); render(); },
+  delMood: (el) => { const s = getShoot(el.dataset.s); const it = (s.mood || []).find((x) => x.id === el.dataset.x); if (it && it.kind === 'img') mDel(it.id); s.mood = (s.mood || []).filter((x) => x.id !== el.dataset.x); ui.sheet = null; save(); render(); },
+  viewImg: (el) => { ui.sheet = { type: 'img', s: el.dataset.s, id: el.dataset.x }; render(); },
+  shareMood: async (el) => {
+    const s = getShoot(el.dataset.s); const pics = (s.mood || []).filter((x) => x.kind === 'img');
+    const files = []; for (const p of pics) { const b = await mGet(p.id); if (b) files.push(new File([b], 'mood-' + (files.length + 1) + '.jpg', { type: 'image/jpeg' })); }
+    const links = (s.mood || []).filter((x) => x.kind === 'link').map((x) => x.url).join('\n');
+    const text = T('Мудборд · ', 'Moodboard · ') + titleOf(s) + (links ? '\n' + links : '');
+    if (navigator.canShare && navigator.canShare({ files })) { try { await navigator.share({ files, text }); } catch (e) { /* cancelled */ } }
+    else toast(T('Этот браузер не умеет отправлять фото пачкой — открой SET в Safari или Chrome на телефоне', 'This browser cannot share photos — use Safari or Chrome on your phone'));
+  },
   addLook: (el) => { const s = getShoot(el.dataset.s); s.looks.push({ id: uid(), name: '', model: '', clothes: '', makeup: '', hair: '', mua: '', ref: '', done: false }); save(); render(); setTimeout(() => { const all = document.querySelectorAll('[aria-label="' + T('Название образа', 'Look name') + '"]'); all[all.length - 1]?.focus(); }, 30); },
   toggleLook: (el) => { const s = getShoot(el.dataset.s); const l = s.looks.find((x) => x.id === el.dataset.x); l.done = !l.done; save(); render(); },
   addBudget: (el) => { const s = getShoot(el.dataset.s); s.budget.lines.push({ id: uid(), label: '', sum: '' }); save(); render(); },
@@ -807,11 +840,17 @@ const A = {
     const csv = '﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\n');
     download('set-income-' + todayIso() + '.csv', csv, 'text/csv');
   },
-  exportJson: () => download('set-backup-' + todayIso() + '.json', JSON.stringify(S, null, 1), 'application/json'),
+  exportJson: async () => {
+    toast(T('Собираю копию…', 'Preparing backup…'));
+    const ids = []; S.shoots.forEach((s) => { (s.mood || []).forEach((x) => { if (x.kind === 'img') ids.push(x.id); }); s.looks.forEach((l) => { if (l.img) ids.push(l.img); }); });
+    const media = {}; for (const id of ids) { const b = await mGet(id); if (b) media[id] = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); }
+    download('set-backup-' + todayIso() + '.json', JSON.stringify({ ...S, media }), 'application/json');
+  },
   importJson: () => $('#importFile').click(),
   wipe: () => { if (!confirm(T('Точно удалить все съёмки, людей и профиль? Это нельзя отменить.', 'Delete everything? This cannot be undone.'))) return; localStorage.removeItem(KEY); S = fresh(); ui.onb = null; location.hash = '#/welcome'; render(); }
 };
 function closeSheet() { ui.sheet = null; if (location.hash.startsWith('#/own')) location.hash = '#/calendar'; else render(); }
+function pickFiles(multi) { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if (multi) i.multiple = true; i.style.display = 'none'; document.body.appendChild(i); i.addEventListener('change', () => { onMediaFiles([...i.files]); i.remove(); }); i.click(); }
 function keepSheetInputs(ids) { const d = ui.sheet.data; const map = { pName: 'name', pPhone: 'phone', pInsta: 'insta', pNote: 'note' }; ids.forEach((i) => { const e = $('#' + i); if (e) d[map[i]] = e.value; }); }
 function keepOwnInputs() {
   const d = ui.sheet.data; const g = (i) => $('#' + i);
@@ -824,6 +863,55 @@ function keepOwnInputs() {
 }
 function download(name, text, type) {
   const blob = new Blob([text], { type }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+
+/* ---------- media (photos live in IndexedDB on this device) ---------- */
+let dbP = null;
+function mdb() {
+  if (!dbP) dbP = new Promise((res, rej) => { const r = indexedDB.open('set-media', 1); r.onupgradeneeded = () => r.result.createObjectStore('img'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  return dbP;
+}
+async function mPut(id, blob) { const d = await mdb(); return new Promise((res, rej) => { const t = d.transaction('img', 'readwrite'); t.objectStore('img').put(blob, id); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+async function mGet(id) { const d = await mdb(); return new Promise((res) => { const q = d.transaction('img').objectStore('img').get(id); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); }
+async function mDel(id) { const d = await mdb(); return new Promise((res) => { const t = d.transaction('img', 'readwrite'); t.objectStore('img').delete(id); t.oncomplete = res; t.onerror = res; }); }
+const urlCache = {};
+async function imgUrl(id) { if (urlCache[id]) return urlCache[id]; const b = await mGet(id); if (!b) return ''; urlCache[id] = URL.createObjectURL(b); return urlCache[id]; }
+function hydrate() { document.querySelectorAll('img[data-img]:not([src])').forEach(async (el) => { const u = await imgUrl(el.dataset.img); if (u) el.src = u; else el.alt = T('фото не найдено на этом телефоне', 'photo not on this device'); }); }
+async function compress(file) {
+  const bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+  const max = 1400; const k = Math.min(1, max / Math.max(bmp.naturalWidth, bmp.naturalHeight));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.naturalWidth * k); c.height = Math.round(bmp.naturalHeight * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); URL.revokeObjectURL(bmp.src);
+  return new Promise((res) => c.toBlob((b) => res(b || file), 'image/jpeg', 0.8));
+}
+const imgTag = (id, style) => '<img data-img="' + esc(id) + '" alt="" loading="lazy" style="' + (style || '') + '">';
+function pMood(s) {
+  const items = s.mood || [];
+  const pics = items.filter((x) => x.kind === 'img');
+  const links = items.filter((x) => x.kind === 'link');
+  let h = '<span class="small muted pad4">' + T('Референсы по съёмке: свет, позы, цвет, локация. Фото хранятся в телефоне, команде можно отправить пачкой.', 'References: light, poses, colour, location. Photos stay on this phone; send them to the team in one go.') + '</span>';
+  if (!items.length) h += '<div class="card dashed" style="align-items:center;text-align:center;padding:28px"><h3>' + T('Мудборд пустой', 'Moodboard is empty') + '</h3><span class="small muted">' + T('Для TFP хватит 5–6 картинок, для бренда — сколько нужно, чтобы все поняли одно и то же.', '5–6 images for TFP; for a brand, enough for everyone to see the same picture.') + '</span></div>';
+  if (pics.length) h += '<div class="grid2">' + pics.map((x) => '<button data-a="viewImg" data-s="' + s.id + '" data-x="' + x.id + '" style="padding:0;border:none;background:var(--line);border-radius:18px;overflow:hidden;aspect-ratio:3/4">' + imgTag(x.id, 'width:100%;height:100%;object-fit:cover;display:block') + '</button>').join('') + '</div>';
+  if (links.length) h += '<div class="card tight">' + links.map((x) => '<div class="li"><a class="grow" href="' + esc(/^https?:/i.test(x.url) ? x.url : 'https://' + x.url) + '" target="_blank" rel="noopener" style="word-break:break-all">' + esc(x.url) + '</a><button class="textbtn" data-a="delMood" data-s="' + s.id + '" data-x="' + x.id + '" aria-label="' + T('Удалить', 'Delete') + '">' + I.x.replace('<svg', '<svg width="16" height="16"') + '</button></div>').join('') + '</div>';
+  h += '<div class="grid2"><button class="btn soft" data-a="pickMood" data-s="' + s.id + '">' + T('+ Фото', '+ Photos') + '</button><button class="btn soft" data-a="addMoodLink" data-s="' + s.id + '">' + T('+ Ссылка', '+ Link') + '</button></div>';
+  if (pics.length) h += '<button class="btn ghost" data-a="shareMood" data-s="' + s.id + '">' + T('Отправить мудборд команде', 'Send moodboard to the team') + '</button>';
+  return h;
+}
+let mediaTarget = null;
+async function onMediaFiles(files) {
+  const t = mediaTarget; mediaTarget = null; if (!t || !files.length) return;
+  const s = getShoot(t.s); if (!s) return;
+  toast(T('Загружаю…', 'Uploading…'));
+  for (const f of files) {
+    if (!/^image\//.test(f.type)) continue;
+    try {
+      const blob = await compress(f); const id = 'img_' + uid(); await mPut(id, blob);
+      if (t.kind === 'mood') { s.mood = s.mood || []; s.mood.push({ id, kind: 'img' }); }
+      else if (t.kind === 'look') { const l = s.looks.find((x) => x.id === t.look); if (l) { if (l.img) mDel(l.img); l.img = id; } }
+    } catch (e) { toast(T('Не получилось добавить фото', 'Could not add a photo')); }
+  }
+  save(); render(); toast(T('Добавлено', 'Added'));
 }
 
 /* ---------- demo ---------- */
@@ -845,6 +933,7 @@ function loadDemo() {
   const past1 = newShoot('brand', { client: T('Кофейня Зерно', 'Grain Café'), what: T('меню', 'menu'), date: dIso(-5), status: 'done' }); past1.my = { role: 'producer', fee: '25000', shifts: 1, paid: true, check: true, note: '' };
   const past2 = newShoot('custom', { src: 'own', client: T('Шоурум Лён', 'Linen showroom'), what: T('лукбук', 'lookbook'), date: dIso(-12), modules: { team: false, timing: false, looks: false, budget: false, print: false } }); past2.my = { role: 'model', fee: '15000', shifts: 1, paid: false, check: false, note: '' };
   const past3 = newShoot('custom', { src: 'own', client: T('Каталог Дом и сад', 'Home & Garden'), what: T('каталог', 'catalogue'), date: dIso(-30), modules: { team: false, timing: false, looks: false, budget: false, print: false } }); past3.my = { role: 'producer', fee: '40000', shifts: 2, paid: true, check: false, note: '' };
+  [b, pe, cr].forEach((x) => { x.timing = applyTemplate(x); });
   S.shoots.push(b, pe, cr, past1, past2, past3);
   if (!S.profile.name) S.profile.name = T('Ксения', 'Ksenia');
   save();
@@ -883,6 +972,7 @@ function render() {
   $('#app').innerHTML = html + vSheet();
   if (location.hash === lastHash) window.scrollTo(0, keep); else window.scrollTo(0, 0);
   lastHash = location.hash;
+  hydrate();
   if (activeB) { const e = document.querySelector('[data-b="' + CSS.escape(activeB) + '"]'); if (e) { e.focus(); try { if (selStart != null) e.setSelectionRange(selStart, selStart); } catch (x) { /* date inputs */ } } }
 }
 
@@ -911,7 +1001,7 @@ document.addEventListener('keydown', (ev) => {
 $('#importFile').addEventListener('change', (ev) => {
   const f = ev.target.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { try { const x = JSON.parse(r.result); if (x.v !== 1 || !Array.isArray(x.shoots)) throw new Error('bad'); if (!confirm(T('Заменить текущие данные копией?', 'Replace current data with the backup?'))) return; S = Object.assign(fresh(), x); save(); toast(T('Копия загружена', 'Backup restored')); location.hash = '#/today'; render(); } catch (e) { toast(T('Это не похоже на копию SET', 'This is not a SET backup')); } };
+  r.onload = () => { try { const x = JSON.parse(r.result); if (x.v !== 1 || !Array.isArray(x.shoots)) throw new Error('bad'); if (!confirm(T('Заменить текущие данные копией?', 'Replace current data with the backup?'))) return; const media = x.media || {}; delete x.media; S = Object.assign(fresh(), x); save(); Object.keys(media).forEach(async (id) => { const b = await (await fetch(media[id])).blob(); await mPut(id, b); }); toast(T('Копия загружена', 'Backup restored')); location.hash = '#/today'; render(); } catch (e) { toast(T('Это не похоже на копию SET', 'This is not a SET backup')); } };
   r.readAsText(f); ev.target.value = '';
 });
 window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/own')) ui.sheet = null; render(); });
