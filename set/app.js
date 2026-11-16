@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.3 beta';
+const VERSION = '0.9.4 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -75,64 +75,82 @@ const GROUPS = [
     ['director', 'Режиссёр', 'Director', ['реклама', 'клипы', 'fashion-видео', 'рилсы', 'работа с актёрами', 'раскадровка', 'сценарий']],
     ['creative', 'Креативный директор / арт-директор', 'Creative / art director', ['концепция', 'мудборды', 'арт-дирекшн на площадке', 'контроль кадра', 'визуальный стиль бренда']],
     ['prodassist', 'Ассистент продюсера', 'Production assistant', ['логистика', 'закупки', 'встреча команды', 'тайминг на площадке', 'возврат вещей']],
-    ['ad', 'Ассистент режиссёра / второй режиссёр', '1st AD', ['тайминг', 'вызывные', 'порядок сцен', 'дисциплина на площадке']],
-    ['casting', 'Кастинг-директор', 'Casting director', ['модели', 'герои', 'лонг-листы', 'пробы', 'договорённости с агентствами']],
-    ['location', 'Локейшн-менеджер', 'Location manager', ['поиск локаций', 'разрешения', 'договор с площадкой']],
-    ['smm', 'SMM / контент-менеджер', 'SMM / content', ['рилсы', 'сторис', 'контент-план', 'съёмка на телефон']] ] },
+    ['execprod', 'Исполнительный продюсер', 'Executive producer', ['бюджеты кампаний', 'переговоры с брендом', 'подбор подрядчиков'], 1],
+    ['lineprod', 'Директор площадки / линейный продюсер', 'Line producer / production manager', ['площадка', 'график смен', 'разрешения', 'контроль расходов'], 1],
+    ['ad', 'Второй режиссёр', '1st AD', ['тайминг', 'вызывные', 'порядок сцен', 'дисциплина на площадке'], 1],
+    ['script', 'Скрипт-супервайзер', 'Script supervisor', ['раскадровка', 'учёт дублей', 'монтажная непрерывность'], 1],
+    ['casting', 'Кастинг-директор', 'Casting director', ['модели', 'герои', 'лонг-листы', 'пробы', 'договорённости с агентствами'], 1],
+    ['location', 'Локейшн-менеджер', 'Location manager', ['поиск локаций', 'разрешения', 'договор с площадкой'], 1],
+    ['runner', 'Раннер / помощник на площадке', 'Runner / set PA', ['закупки', 'доставка', 'встреча людей'], 1],
+    ['smm', 'SMM / контент-менеджер', 'SMM / content', ['рилсы', 'сторис', 'контент-план', 'съёмка на телефон'], 1] ] },
   { ru: 'Камера и свет', en: 'Camera & light', glow: 'teal', roles: [
     ['photo', 'Фотограф', 'Photographer', ['fashion', 'бьюти', 'предметка', 'портрет', 'репортаж', 'интерьер', 'еда', 'съёмка на плёнку', 'ретушь сам']],
     ['video', 'Видеограф / оператор', 'Videographer', ['рилсы', 'реклама', 'клипы', 'ивенты', 'монтирую сам', 'стабилизатор']],
-    ['dop', 'Оператор-постановщик (DOP)', 'Director of photography', ['кинотехника', 'световые схемы', 'реклама', 'клипы']],
-    ['focus', 'Фокус-пуллер / ассистент оператора', 'Focus puller / AC', ['фокус', 'карточки', 'сборка камеры']],
     ['mobile', 'Мобилограф', 'Mobile creator', ['рилсы', 'сторис', 'контент на телефон', 'монтаж в телефоне']],
     ['light', 'Гаффер / световик', 'Gaffer', ['импульсный свет', 'постоянный свет', 'свой свет', 'дым-машина', 'световые схемы']],
     ['photoassist', 'Ассистент фотографа', 'Photo assistant', ['свет', 'отражатели', 'бэкапы', 'сборка-разборка']],
-    ['dit', 'Цифровой техник', 'Digital tech', ['съёмка в ноутбук', 'бэкапы', 'превью клиенту', 'цвет на площадке']],
-    ['bts', 'Бэкстейдж', 'Behind the scenes', ['фото', 'видео', 'рилсы со съёмки', 'сторис для бренда']],
-    ['drone', 'Дрон-оператор', 'Drone operator', ['съёмка с воздуха', 'свой дрон', 'FPV']] ] },
+    ['dop', 'Оператор-постановщик (DOP)', 'Director of photography', ['кинотехника', 'световые схемы', 'реклама', 'клипы'], 1],
+    ['focus', 'Фокус-пуллер / ассистент оператора', 'Focus puller / AC', ['фокус', 'карточки', 'сборка камеры'], 1],
+    ['steadicam', 'Стедикам-оператор', 'Steadicam operator', ['стедикам', 'роним', 'проходы'], 1],
+    ['grip', 'Грип / техник по кранам и тележкам', 'Grip', ['тележка', 'кран', 'риг на авто'], 1],
+    ['dit', 'Цифровой техник (DIT)', 'Digital tech (DIT)', ['съёмка в ноутбук', 'бэкапы', 'превью клиенту', 'цвет на площадке'], 1],
+    ['playback', 'Плейбэк / видеоконтроль', 'Video assist', ['мониторы для клиента', 'запись дублей'], 1],
+    ['bts', 'Бэкстейдж', 'Behind the scenes', ['фото', 'видео', 'рилсы со съёмки', 'сторис для бренда'], 1],
+    ['drone', 'Дрон-оператор', 'Drone operator', ['съёмка с воздуха', 'свой дрон', 'FPV'], 1] ] },
   { ru: 'Образ', en: 'Look', glow: 'pink', roles: [
     ['stylist', 'Стилист', 'Stylist', ['подбор образов', 'закуп с возвратом', 'аренда вещей', 'свой гардероб', 'работа с брендом', 'шоурумы']],
-    ['stylistassist', 'Ассистент стилиста', 'Stylist assistant', ['отпаривание', 'возврат вещей', 'переодевания', 'учёт вещей']],
-    ['costume', 'Художник по костюмам', 'Costume designer', ['пошив', 'исторический костюм', 'кино и клипы']],
     ['mua', 'Визажист', 'Make-up artist', ['нюд', 'вечерний', 'графичный', 'бьюти крупным планом', 'грим для видео', 'мужской грим']],
     ['hair', 'Стилист по волосам', 'Hair stylist', ['укладки', 'плетения', 'парики', 'ретро-укладки', 'стрижка на площадке']],
-    ['sfx', 'Пластический грим / SFX', 'SFX make-up', ['раны и шрамы', 'возраст', 'фантазийный грим', 'боди-арт']],
-    ['nails', 'Мастер маникюра', 'Nail artist', ['нюд', 'дизайн', 'руки для крупных планов', 'накладные ногти']] ] },
+    ['nails', 'Мастер маникюра', 'Nail artist', ['нюд', 'дизайн', 'руки для крупных планов', 'накладные ногти']],
+    ['stylistassist', 'Ассистент стилиста', 'Stylist assistant', ['отпаривание', 'возврат вещей', 'переодевания', 'учёт вещей'], 1],
+    ['wardrobe', 'Костюмер на площадке', 'Wardrobe on set', ['одевание', 'отпаривание', 'учёт и возврат вещей'], 1],
+    ['costume', 'Художник по костюмам', 'Costume designer', ['пошив', 'исторический костюм', 'кино и клипы'], 1],
+    ['tailor', 'Портной / подгонка', 'Tailor', ['подгонка по фигуре', 'срочный ремонт', 'пошив'], 1],
+    ['grooming', 'Грумер (мужской образ)', 'Groomer', ['мужской грим', 'борода', 'стрижка'], 1],
+    ['sfx', 'Пластический грим / SFX', 'SFX make-up', ['раны и шрамы', 'возраст', 'фантазийный грим', 'боди-арт'], 1] ] },
   { ru: 'В кадре', en: 'In frame', glow: 'lemon', roles: [
     ['model', 'Модель', 'Model', ['fashion', 'бьюти', 'коммерция', 'каталог', 'маркетплейсы', 'рилсы', 'руки и детали', 'бельё', 'плюс-сайз']],
     ['actor', 'Актёр, актриса', 'Actor', ['реклама', 'короткий метр', 'говорю на камеру', 'импровизация']],
-    ['dancer', 'Танцор', 'Dancer', ['современный танец', 'хореография для клипов', 'contemporary', 'хип-хоп']],
-    ['choreo', 'Хореограф / постановщик движения', 'Choreographer', ['постановка движения', 'позинг', 'клипы']],
     ['blogger', 'Блогер', 'Creator', ['свой блог', 'интеграции', 'говорю на камеру', 'UGC']],
-    ['hero', 'Герой съёмки', 'Real person', ['не модель', 'эксперт', 'сотрудник бренда', 'семья', 'ребёнок с родителями']],
-    ['petwrangler', 'Хендлер животных', 'Animal handler', ['собаки', 'кошки', 'лошади']] ] },
+    ['hero', 'Герой съёмки', 'Real person', ['не модель', 'эксперт', 'сотрудник бренда', 'семья']],
+    ['dancer', 'Танцор', 'Dancer', ['современный танец', 'хореография для клипов', 'contemporary', 'хип-хоп'], 1],
+    ['choreo', 'Хореограф / постановщик движения', 'Choreographer', ['постановка движения', 'позинг', 'клипы'], 1],
+    ['extra', 'Массовка', 'Extras', ['фон', 'ивенты', 'клипы'], 1],
+    ['booker', 'Букер модельного агентства', 'Agency booker', ['подбор моделей', 'условия', 'договоры'], 1],
+    ['petwrangler', 'Хендлер животных', 'Animal handler', ['собаки', 'кошки', 'лошади'], 1] ] },
   { ru: 'Сет и площадка', en: 'Set & venue', glow: 'cobalt', roles: [
+    ['studio', 'Студия / площадка', 'Studio / venue', ['циклорама', 'интерьерные залы', 'свой свет', 'гримёрка', 'парковка']],
     ['setdesign', 'Сет-дизайнер / художник-постановщик', 'Set / production designer', ['декорации', 'фоны', 'строительство сета', 'эскизы']],
     ['props', 'Реквизитор', 'Props', ['поиск реквизита', 'аренда', 'возврат', 'изготовление']],
-    ['decor', 'Декоратор', 'Set dresser', ['наполнение кадра', 'текстиль', 'расстановка']],
     ['florist', 'Флорист', 'Florist', ['композиции', 'инсталляции', 'сухоцветы']],
-    ['food', 'Фуд-стилист', 'Food stylist', ['еда в кадре', 'напитки', 'кондитерка']],
-    ['studio', 'Студия / площадка', 'Studio / venue', ['циклорама', 'интерьерные залы', 'свой свет', 'гримёрка', 'парковка']],
-    ['rental', 'Прокат техники', 'Gear rental', ['свет', 'камеры', 'грип', 'доставка']],
-    ['catering', 'Кейтеринг', 'Catering', ['обеды на площадку', 'кофе-брейк', 'вегетарианское меню']],
-    ['driver', 'Водитель / логистика', 'Driver / transport', ['перевозка команды', 'перевозка техники', 'минивэн']] ] },
+    ['decor', 'Декоратор', 'Set dresser', ['наполнение кадра', 'текстиль', 'расстановка'], 1],
+    ['builder', 'Застройщик декораций', 'Set builder', ['конструкции', 'покраска', 'монтаж и демонтаж'], 1],
+    ['food', 'Фуд-стилист', 'Food stylist', ['еда в кадре', 'напитки', 'кондитерка'], 1],
+    ['rental', 'Прокат техники', 'Gear rental', ['свет', 'камеры', 'грип', 'доставка'], 1],
+    ['catering', 'Кейтеринг', 'Catering', ['обеды на площадку', 'кофе-брейк', 'вегетарианское меню'], 1],
+    ['driver', 'Водитель / логистика', 'Driver / transport', ['перевозка команды', 'перевозка техники', 'минивэн'], 1],
+    ['security', 'Охрана площадки', 'Set security', ['охрана техники', 'охрана вещей бренда'], 1] ] },
   { ru: 'Звук и пост', en: 'Sound & post', glow: 'sky', roles: [
-    ['sound', 'Звукорежиссёр', 'Sound recordist', ['запись на площадке', 'петлички', 'бум', 'сведение']],
     ['retouch', 'Ретушёр', 'Retoucher', ['бьюти-ретушь', 'fashion', 'предметка', 'частотка', 'коллажи']],
     ['editor', 'Монтажёр', 'Editor', ['рилсы', 'реклама', 'клипы', 'субтитры', 'вертикальный формат']],
-    ['color', 'Колорист', 'Colorist', ['цветокор видео', 'цвет фото', 'LUT под бренд']],
-    ['motion', 'Моушн-дизайнер', 'Motion designer', ['титры', 'анимация', '3D', 'упаковка рилсов']],
-    ['designer', 'Графический дизайнер / иллюстратор', 'Designer / illustrator', ['вёрстка', 'обложки', 'иллюстрации', 'упаковка кампании']] ] },
+    ['sound', 'Звукорежиссёр', 'Sound recordist', ['запись на площадке', 'петлички', 'бум', 'сведение'], 1],
+    ['color', 'Колорист', 'Colorist', ['цветокор видео', 'цвет фото', 'LUT под бренд'], 1],
+    ['motion', 'Моушн-дизайнер', 'Motion designer', ['титры', 'анимация', '3D', 'упаковка рилсов'], 1],
+    ['cgi', '3D / CGI-художник', '3D / CGI artist', ['3D-продукт', 'композитинг', 'визуальные эффекты'], 1],
+    ['music', 'Композитор / саунд-дизайнер', 'Composer / sound designer', ['музыка под ролик', 'саунд-дизайн', 'лицензии на музыку'], 1],
+    ['designer', 'Графический дизайнер / иллюстратор', 'Designer / illustrator', ['вёрстка', 'обложки', 'иллюстрации', 'упаковка кампании'], 1] ] },
   { ru: 'Заказчик', en: 'Client', glow: 'pink', roles: [
     ['brand', 'Бренд', 'Brand', ['лукбуки', 'маркетплейсы', 'рилсы', 'кампании', 'бартер']],
-    ['agency', 'Агентство', 'Agency', ['реклама', 'SMM', 'ивенты', 'модельное агентство']],
-    ['client', 'Частный клиент', 'Private client', ['портрет', 'love story', 'семейная', 'для блога', 'подарочный сертификат']] ] }
+    ['client', 'Частный клиент', 'Private client', ['портрет', 'love story', 'семейная', 'для блога', 'подарочный сертификат']],
+    ['agency', 'Агентство', 'Agency', ['реклама', 'SMM', 'ивенты', 'модельное агентство'], 1],
+    ['brandrep', 'Представитель бренда на площадке', 'Brand rep on set', ['утверждение кадров', 'контроль продукта'], 1],
+    ['marketing', 'Маркетолог бренда', 'Brand marketer', ['брифы', 'цели кампании', 'запуск'], 1] ] }
 ];
 const ROLE = {};
-GROUPS.forEach((g) => g.roles.forEach((r) => { ROLE[r[0]] = { id: r[0], ru: r[1], en: r[2], skills: r[3], glow: g.glow }; }));
+GROUPS.forEach((g) => g.roles.forEach((r) => { ROLE[r[0]] = { id: r[0], ru: r[1], en: r[2], skills: r[3], glow: g.glow, more: !!r[4] }; }));
 ROLE.art = ROLE.creative;
 const roleName = (id) => (ROLE[id] ? (L() === 'en' ? ROLE[id].en : ROLE[id].ru) : (id || ''));
-const CLIENT_ROLES = ['brand', 'agency', 'client'];
+const CLIENT_ROLES = ['brand', 'agency', 'client', 'brandrep', 'marketing'];
 const FOOD = [['all', 'ем всё', 'eat everything'], ['nomeat', 'без мяса', 'no meat'], ['nofish', 'без рыбы', 'no fish'], ['gluten', 'без глютена', 'gluten-free'], ['lactose', 'без лактозы', 'lactose-free'], ['vegan', 'веган', 'vegan']];
 
 const UNITS = [['проект', 'project'], ['смена', 'day'], ['час', 'hour'], ['образ', 'look'], ['чел', 'person'], ['шт', 'pcs'], ['пакет', 'package'], ['сумма', 'lump sum']];
@@ -164,7 +182,7 @@ function migrate(s) {
   if (!s.mood) s.mood = [];
   return s;
 }
-const memberPayText = (m) => m.pay === 'tfp' ? 'TFP' : m.pay === 'client' ? payName('client') : m.pay === 'barter' ? T('бартер', 'barter') + (num(m.barter) ? ' ' + money(num(m.barter)) + ' ₽' : '') : m.pay === 'cert' ? T('сертификат', 'voucher') + (num(m.barter) ? ' ' + money(num(m.barter)) + ' ₽' : '') : (num(m.rate) ? money(num(m.rate)) + ' ₽/' + unitName(m.unit) : '') + (m.pay === 'mix' && num(m.barter) ? ' + ' + T('бартер ', 'barter ') + money(num(m.barter)) : '');
+const memberPayText = (m) => m.pay === 'tfp' ? 'TFP' : m.pay === 'client' ? payName('client') : m.pay === 'barter' ? T('бартер', 'barter') + (num(m.barter) ? ' ' + money(num(m.barter)) + ' ₽' : '') : m.pay === 'cert' ? T('сертификат', 'voucher') + (num(m.barter) ? ' ' + money(num(m.barter)) + ' ₽' : '') : (num(m.rate) ? money(num(m.rate)) + ' ₽/' + unitName(m.unit || 'смена') : '') + (m.pay === 'mix' && num(m.barter) ? ' + ' + T('бартер ', 'barter ') + money(num(m.barter)) : '');
 
 const KINDS = {
   brand: { glow: 'pink', ru: 'Для бренда', en: 'For a brand', sub: ['Лукбук, каталог, кампания. Смета, ссылка для заказчика, права на фото', 'Lookbook, catalogue, campaign. Budget, client link, usage rights'] },
@@ -362,9 +380,14 @@ function vWelcome() {
     h += '<h1>' + T('Давай<br>знакомиться', 'Nice to<br>meet you') + '</h1><p class="muted" style="margin:0">' + T('Заполнишь один раз — дальше всё подставится само', 'Fill this in once — the rest fills itself in') + '</p>';
     h += '<div class="grid2">' + field(T('Имя', 'Name'), inp('profile.name', p.name, { ph: T('Как к тебе обращаться', 'Your name') })) + field(T('Город', 'City'), inp('profile.city', p.city, { ph: T('Казань', 'City') })) + '</div>';
     h += '<h2 style="margin-top:6px">' + T('Кто ты на съёмке?', 'What do you do on set?') + '</h2><span class="small muted pad4">' + T('Можно несколько', 'Pick as many as you like') + '</span>';
-    GROUPS.forEach((g) => {
+    ui.moreG = ui.moreG || {};
+    GROUPS.forEach((g, gi) => {
+      const open = !!ui.moreG[gi];
+      const vis = g.roles.filter((r) => !r[4] || open || p.roles.includes(r[0]));
+      const hidden = g.roles.filter((r) => r[4] && !open && !p.roles.includes(r[0])).length;
       h += '<div class="col"><span class="tiny muted pad4" style="font-weight:600;letter-spacing:.06em;text-transform:uppercase">' + (L() === 'en' ? g.en : g.ru) + '</span><div class="chips">' +
-        g.roles.map((r) => chip(L() === 'en' ? r[2] : r[1], p.roles.includes(r[0]), 'toggleRole', r[0])).join('') + '</div></div>';
+        vis.map((r) => chip(L() === 'en' ? r[2] : r[1], p.roles.includes(r[0]), 'toggleRole', r[0])).join('') +
+        (hidden ? '<button class="chip" data-a="moreG" data-x="' + gi + '" style="background:transparent;border:1.5px dashed var(--ink3)">' + T('Ещё · ', 'More · ') + hidden + '</button>' : open && g.roles.some((r) => r[4]) ? '<button class="chip" data-a="moreG" data-x="' + gi + '" style="background:transparent;color:var(--ink2)">' + T('Свернуть', 'Less') + '</button>' : '') + '</div></div>';
     });
     h += inp('profile.ownRole', p.ownRole, { ph: T('Нет твоей роли? Напиши свою', 'Not listed? Type your role'), cls: 'dashed', r: true });
     if (p.ownRole) h += '<span class="small muted pad4">' + T('Добавим «' + esc(p.ownRole) + '» как твою роль. На следующем шаге расскажешь, что делаешь.', 'We’ll add “' + esc(p.ownRole) + '” as your role.') + '</span>';
@@ -868,6 +891,7 @@ const A = {
   lang: (el) => { S.lang = el.dataset.x; document.documentElement.lang = S.lang; save(); render(); },
   setUi: (el) => { const [k, v] = el.dataset.x.split('|'); ui[k] = v; render(); },
   setProfile: (el) => { const [k, v] = el.dataset.x.split('|'); S.profile[k] = v; save(); render(); },
+  moreG: (el) => { ui.moreG = ui.moreG || {}; ui.moreG[el.dataset.x] = !ui.moreG[el.dataset.x]; render(); },
   toggleRole: (el) => { const r = el.dataset.x, a = S.profile.roles; const i = a.indexOf(r); if (i >= 0) a.splice(i, 1); else a.push(r); save(); render(); },
   toggleSkill: (el) => { const k = el.dataset.x, a = S.profile.skills; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); save(); render(); },
   toggleFood: (el) => { const k = el.dataset.x; let a = S.profile.food; if (k === 'all') a = a.includes('all') ? [] : ['all']; else { a = a.filter((x) => x !== 'all'); a = a.includes(k) ? a.filter((x) => x !== k) : a.concat(k); } S.profile.food = a; save(); render(); },
@@ -1094,7 +1118,7 @@ function loadDemo() {
   const dIso = (n) => { const d = new Date(t); d.setDate(d.getDate() + n); return isoOf(d); };
   const P = (name, role, insta, food) => { const p = { id: uid(), name, role, phone: '', insta, food: food || [], note: '' }; S.people.push(p); return p; };
   const ola = P('Оля Смирнова', 'photo', '@ola.ph'), karina = P('Карина', 'mua', '@karina.mua', ['nomeat']), mila = P('Мила', 'model', '@mila.m'), sasha = P('Саша', 'model', '@sasha.models', ['lactose']), lena = P('Лена', 'stylist', '@lena.style'), dima = P('Дима', 'light', '');
-  const M = (p, call, rate, status) => ({ id: uid(), pid: p.id, name: p.name, role: p.role, call, rate, status, paid: false });
+  const M = (p, call, rate, status) => ({ id: uid(), pid: p.id, name: p.name, role: p.role, call, rate, unit: 'смена', pay: rate ? 'money' : 'tfp', barter: '', note: '', status, paid: false });
   const b = newShoot('brand', { client: T('Марта', 'Marta'), what: T('лукбук', 'lookbook'), date: dIso(3), place: T('Студия Свет', 'Studio Light'), address: T('ул. Пушкина, 12, 3 этаж, зал «Белый»', '12 Pushkin St, 3rd floor') });
   b.team = [M(ola, '09:00', '25000', 'yes'), M(karina, '08:45', '12000', 'yes'), M(mila, '09:15', '15000', 'asked'), M(sasha, '10:30', '15000', ''), M(lena, '08:30', '12000', 'yes'), M(dima, '08:30', '8000', 'yes')];
   b.looks = [['Нежный беж', 'Мила', 'льняной костюм, лоферы'], ['Город', 'Саша', 'тренч, джинсы'], ['Вечер', 'Мила', 'шёлковое платье'], ['Выходной', 'Саша', 'трикотаж, кеды']].map((x) => ({ id: uid(), name: x[0], model: x[1], clothes: x[2], makeup: T('нюд', 'nude'), hair: T('гладкий пучок', 'sleek bun'), mua: 'Карина', ref: '', done: false }));
