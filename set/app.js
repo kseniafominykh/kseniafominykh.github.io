@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.4 beta';
+const VERSION = '0.9.5 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -17,6 +17,18 @@ const mins = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || '').trim(
 const normTime = (v) => { const d = String(v || '').replace(/\D/g, ''); if (!d) return ''; let h, m; if (d.length <= 2) { h = +d; m = 0; } else { h = +d.slice(0, d.length - 2); m = +d.slice(-2); } if (h > 23 || m > 59) return String(v); return pad(h) + ':' + pad(m); };
 const daysBetween = (a, b) => Math.round((parseIso(b) - parseIso(a)) / 864e5);
 const plural = (n, a, b, c) => { const k = n % 10, h = n % 100; return (k === 1 && h !== 11) ? a : (k >= 2 && k <= 4 && (h < 12 || h > 14)) ? b : c; };
+
+
+/* ---------- subscription (manual SBP payment + signed activation link) ---------- */
+const SUB = {
+  price: 790,                 // ₽ в месяц
+  payUrl: '',                 // ссылка на оплату по СБП из банка
+  qr: '',                     // картинка QR-кода (путь к файлу), если есть
+  tg: '',                     // ник в Telegram без @
+  wa: '',                     // номер для WhatsApp, только цифры
+  trialDays: 30,
+  pub: 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhrHIfZAlgDg1cV7unG+No9YgBS15cUqxzTarcsSaT6ZHmYxbpD+xsGGApnrmvspWxIelHEvtUbkJeQ0yMRq8Xw=='
+};
 
 /* ---------- state ---------- */
 let S = load();
@@ -360,6 +372,52 @@ const inp = (b, val, o = {}) => o.type === 'time' ? '<input class="inp mono" typ
 const field = (label, html) => '<label class="f">' + esc(label) + html + '</label>';
 const sw = (label, sub, on, act, arg) => '<button class="switch" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" data-a="' + act + '" data-x="' + esc(arg || '') + '"><span class="col" style="gap:2px"><span style="font-weight:500">' + esc(label) + '</span>' + (sub ? '<span class="tiny muted">' + esc(sub) + '</span>' : '') + '</span><span class="track"><i></i></span></button>';
 
+
+/* ---------- subscription logic ---------- */
+const isPro = () => !!(S.pro && S.pro.until >= todayIso());
+const trialDaysUsed = () => Math.max(0, daysBetween(S.firstRun || todayIso(), todayIso()));
+const trialActive = () => { const d = trialDaysUsed(); const done = S.shoots.some((x) => x.src === 'set' && x.status === 'done'); return d < SUB.trialDays || (!done && d < SUB.trialDays * 2); };
+const canCreate = () => isPro() || trialActive();
+const b64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+async function verifyActivation(code) {
+  const parts = String(code || '').split('.');
+  if (parts.length !== 3) return { ok: false, why: 'format' };
+  const [dev, until, sig] = parts;
+  if (dev !== S.deviceId) return { ok: false, why: 'device' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) return { ok: false, why: 'format' };
+  try {
+    const key = await crypto.subtle.importKey('spki', Uint8Array.from(atob(SUB.pub), (c) => c.charCodeAt(0)), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64u(sig), new TextEncoder().encode(dev + '.' + until));
+    return ok ? { ok: true, until } : { ok: false, why: 'sig' };
+  } catch (e) { return { ok: false, why: 'sig' }; }
+}
+function subStatusText() {
+  if (isPro()) return T('Подписка до ', 'Subscribed until ') + fmtDate(S.pro.until, { year: true });
+  if (trialActive()) return T('Пробный период: ', 'Trial: ') + Math.max(0, SUB.trialDays - trialDaysUsed()) + T(' дн.', ' days left');
+  return T('Пробный период закончился', 'Trial is over');
+}
+function vPro() {
+  const msg = T('Привет! Оплатила подписку SET. Мой код: ', 'Hi! I paid for SET. My code: ') + S.deviceId;
+  let h = '<div class="screen"><div class="top">' + backBtn('#/me') + '<span class="kicker">' + T('Подписка', 'Subscription') + '</span><span style="width:44px"></span></div>';
+  h += '<h1 class="pad4">SET<br>' + T('организатору', 'for organisers') + '</h1>';
+  h += '<div class="card glow-pink" style="padding:22px"><span class="small">' + esc(subStatusText()) + '</span><span class="mono" style="font-size:38px;letter-spacing:-0.02em">' + money(SUB.price) + ' ₽<span class="small muted" style="font-family:var(--body)"> / ' + T('месяц', 'month') + '</span></span>' +
+    ['Сколько угодно съёмок', 'Смета с бартером и резервом', 'Лист на площадку и режим площадки', 'Мой доход и выгрузка для налоговой'].map((x) => '<span class="small">✓ ' + esc(T(x, x)) + '</span>').join('') + '</div>';
+  h += '<div class="card"><h3>' + T('1. Оплати по СБП', '1. Pay via SBP') + '</h3>' +
+    (SUB.qr ? '<img src="' + esc(SUB.qr) + '" alt="QR СБП" style="width:220px;max-width:100%;align-self:center;border-radius:16px;background:#fff;padding:10px">' : '') +
+    (SUB.payUrl ? '<a class="btn" href="' + esc(SUB.payUrl) + '" target="_blank" rel="noopener">' + T('Открыть оплату в банке', 'Open payment in your bank') + '</a>' : '<span class="small muted">' + T('Ссылка на оплату скоро появится', 'Payment link coming soon') + '</span>') +
+    '<span class="tiny muted">' + T('Картой любого российского банка через приложение банка. Сумма — ', 'Any Russian bank card via your bank app. Amount: ') + money(SUB.price) + ' ₽</span></div>';
+  h += '<div class="card"><h3>' + T('2. Напиши мне', '2. Message me') + '</h3><span class="small">' + T('Пришли скриншот оплаты и свой код:', 'Send the payment screenshot and your code:') + '</span><button class="btn soft mono" data-a="copyText" data-x="' + esc(S.deviceId) + '" style="font-size:22px;letter-spacing:0.08em">' + esc(S.deviceId) + '</button>' +
+    '<div class="grid2">' + (SUB.tg ? '<a class="btn" href="https://t.me/' + esc(SUB.tg) + '" target="_blank" rel="noopener">Telegram</a>' : '') + (SUB.wa ? '<a class="btn" href="https://wa.me/' + esc(SUB.wa) + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '</div></div>';
+  h += '<div class="card"><h3>' + T('3. Нажми ссылку из ответа', '3. Tap the link I send back') + '</h3><span class="small muted">' + T('Подписка включится на этом телефоне. Данные никуда не пропадут.', 'The subscription turns on for this phone. Your data stays.') + '</span><input class="inp mono" id="actCode" placeholder="' + T('или вставь код активации сюда', 'or paste the activation code') + '"><button class="btn soft" data-a="activateManual">' + T('Активировать', 'Activate') + '</button></div>';
+  h += '<span class="tiny muted pad4">' + T('Съёмки, люди и доход остаются у тебя и без подписки — без неё нельзя только создавать новые проекты.', 'Without a subscription you keep all your data — you just can’t create new projects.') + '</span></div>' + nav('');
+  return h;
+}
+async function doActivate(code) {
+  const r = await verifyActivation(code);
+  if (r.ok) { S.pro = { until: r.until, code }; save(); toast(T('Подписка включена до ', 'Subscribed until ') + fmtDate(r.until, { year: true })); location.hash = '#/me'; }
+  else toast(r.why === 'device' ? T('Этот код для другого телефона', 'This code is for another device') : T('Код не подошёл — проверь, что скопирован целиком', 'Code didn’t work — copy it whole'));
+}
+
 /* ========== VIEWS ========== */
 
 /* --- onboarding --- */
@@ -482,6 +540,7 @@ function vProjects() {
 
 /* --- new shoot --- */
 function vNew() {
+  if (!canCreate()) return '<div class="screen"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span><span style="width:44px"></span></div><h1 class="pad4">' + T('Пробный период<br>закончился', 'Your trial<br>is over') + '</h1><div class="card glow-pink"><span>' + T('Все твои съёмки, люди и доход на месте. Чтобы создавать новые проекты, оформи подписку — ', 'All your shoots, people and income are still here. To create new projects, subscribe — ') + money(SUB.price) + T(' ₽ в месяц.', ' ₽ a month.') + '</span><a class="btn" href="#/pro">' + T('Оформить подписку', 'Subscribe') + '</a></div><span class="small muted pad4">' + T('Свою съёмку не через SET можно добавить в календаре бесплатно.', 'You can still log your own shoots in the calendar for free.') + '</span></div>' + nav('');
   const n = ui.newKind;
   let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span></div>';
   h += '<h1 class="pad4">' + T('Что<br>снимаем?', 'What are<br>we shooting?') + '</h1>';
@@ -777,6 +836,7 @@ function vMe() {
   const rl = p.roles.map(roleName).concat(p.ownRole ? [p.ownRole] : []).join(' · ');
   let h = '<div class="screen"><div class="top">' + backBtn('#/today') + '<a class="iconbtn" href="#/settings" aria-label="' + T('Настройки', 'Settings') + '">' + I.gear + '</a></div>';
   h += '<div class="row pad4" style="gap:14px"><span class="avatar" style="width:60px;height:60px;border-radius:30px;font-size:24px">' + esc(initials(p.name)) + '</span><span class="col grow" style="gap:2px"><b style="font-size:18px">' + esc(p.name || T('Без имени', 'No name')) + '</b><span class="small muted">' + esc(rl) + '</span></span><button class="btn sm soft" data-a="editProfile">' + T('Изменить', 'Edit') + '</button></div>';
+  h += '<a class="row between card" href="#/pro" style="flex-direction:row;text-decoration:none;color:inherit;padding:14px 18px"><span class="small">' + esc(subStatusText()) + '</span><span class="badge ' + (isPro() ? 'ok' : 'ink') + '">' + (isPro() ? 'SET Pro' : T('Подписка', 'Subscribe')) + '</span></a>';
   h += '<h1 class="pad4">' + T('Мои съёмки', 'My shoots') + '</h1>';
   h += '<div class="chips">' + chip(MONTHS_N[L()][now.getMonth()], ui.per === 'month', 'setUi', 'per|month') + chip(String(now.getFullYear()), ui.per === 'year', 'setUi', 'per|year') + chip(T('Всё время', 'All time'), ui.per === 'all', 'setUi', 'per|all') + '</div>';
   h += '<div class="card glow-pink" style="padding:22px;gap:14px"><div class="col" style="gap:2px"><span class="tiny">' + T('Заработано', 'Earned') + '</span><span class="h1" style="font-family:var(--mono);font-size:42px;letter-spacing:-0.03em">' + money(earned) + ' ₽</span></div>' +
@@ -801,6 +861,7 @@ function vSettings() {
   let h = '<div class="screen"><div class="top">' + backBtn('#/me') + '<span class="kicker">' + T('Настройки', 'Settings') + '</span><span style="width:44px"></span></div><h1 class="pad4">' + T('Настройки', 'Settings') + '</h1>';
   h += '<div class="card"><h3>' + T('Язык', 'Language') + '</h3><div class="chips">' + chip('Русский', S.lang === 'ru', 'lang', 'ru') + chip('English', S.lang === 'en', 'lang', 'en') + '</div></div>';
   h += '<div class="card glow-teal"><h3>' + T('Как поставить на телефон', 'Install on your phone') + '</h3><span class="small">' + T('iPhone: в Safari нажми «Поделиться» → «На экран Домой». Android: в Chrome меню ⋮ → «Добавить на главный экран». SET откроется как приложение и будет работать без интернета.', 'iPhone: in Safari tap Share → Add to Home Screen. Android: Chrome menu ⋮ → Add to Home screen.') + '</span></div>';
+  h += '<a class="card glow-pink" href="#/pro" style="text-decoration:none;color:inherit"><h3>' + T('Подписка', 'Subscription') + '</h3><span class="small">' + esc(subStatusText()) + '</span></a>';
   h += '<div class="card"><h3>' + T('Резервная копия', 'Backup') + '</h3><span class="small muted">' + T('Все данные хранятся только в этом телефоне. Сохраняй копию раз в неделю — и перед сменой телефона.', 'Your data lives only on this device. Save a backup weekly.') + '</span><div class="grid2"><button class="btn soft" data-a="exportJson">' + T('Сохранить копию', 'Save backup') + '</button><button class="btn soft" data-a="importJson">' + T('Загрузить копию', 'Restore') + '</button></div></div>';
   h += '<div class="card"><h3>' + T('Пример', 'Example') + '</h3><span class="small muted">' + T('Добавит съёмку для бренда, TFP, частного клиента и пару прошедших — чтобы всё потрогать.', 'Adds sample shoots to explore.') + '</span><button class="btn soft" data-a="demo">' + T('Добавить пример', 'Add example') + '</button></div>';
   h += '<div class="card"><h3>' + T('Начать с чистого листа', 'Start over') + '</h3><button class="btn danger" data-a="wipe">' + T('Удалить все данные', 'Delete all data') + '</button></div>';
@@ -956,6 +1017,7 @@ const A = {
   },
   deletePerson: () => { if (!confirm(T('Удалить из базы? Из прошлых проектов человек не пропадёт.', 'Delete? Past projects keep the name.'))) return; S.people = S.people.filter((x) => x.id !== ui.sheet.data.id); ui.sheet = null; save(); render(); },
   copyText: (el) => copy(el.dataset.x),
+  activateManual: () => { const v = ($('#actCode')?.value || '').trim(); const m = v.match(/activate\/(.+)$/); doActivate(m ? decodeURIComponent(m[1]) : v); },
 
   pickMood: (el) => { mediaTarget = { s: el.dataset.s, kind: 'mood' }; pickFiles(true); },
   pickLookImg: (el) => { mediaTarget = { s: el.dataset.s, kind: 'look', look: el.dataset.x }; pickFiles(false); },
@@ -1012,7 +1074,7 @@ const A = {
   finishShoot: (el) => { const s = getShoot(el.dataset.s); s.status = 'done'; if (!s.date) s.date = todayIso(); save(); toast(T('Съёмка в архиве и в доходе', 'Moved to archive and income')); location.hash = '#/me'; },
   reopen: (el) => { const s = getShoot(el.dataset.s); s.status = 'plan'; save(); render(); },
   shootMenu: (el) => { ui.sheet = { type: 'menu', s: el.dataset.s }; render(); },
-  dupShoot: () => { const s = getShoot(ui.sheet.s); const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.date = ''; c.status = 'plan'; c.what = (c.what || '') + T(' (копия)', ' (copy)'); c.team.forEach((m) => { m.id = uid(); m.status = ''; m.paid = false; }); c.looks.forEach((l) => { l.id = uid(); l.done = false; }); c.checklist.forEach((x) => { x.id = uid(); x.done = false; }); c.my = { ...c.my, paid: false, check: false, fee: '' }; S.shoots.push(c); ui.sheet = null; save(); location.hash = '#/p/' + c.id; },
+  dupShoot: () => { if (!canCreate()) { ui.sheet = null; location.hash = '#/pro'; return; } const s = getShoot(ui.sheet.s); const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.date = ''; c.status = 'plan'; c.what = (c.what || '') + T(' (копия)', ' (copy)'); c.team.forEach((m) => { m.id = uid(); m.status = ''; m.paid = false; }); c.looks.forEach((l) => { l.id = uid(); l.done = false; }); c.checklist.forEach((x) => { x.id = uid(); x.done = false; }); c.my = { ...c.my, paid: false, check: false, fee: '' }; S.shoots.push(c); ui.sheet = null; save(); location.hash = '#/p/' + c.id; },
   deleteShoot: () => { if (!confirm(T('Удалить съёмку целиком?', 'Delete this shoot?'))) return; S.shoots = S.shoots.filter((x) => x.id !== ui.sheet.s); ui.sheet = null; save(); location.hash = '#/projects'; },
   calMove: (el) => { const c = ui.cal; c.m += Number(el.dataset.x); if (c.m < 0) { c.m = 11; c.y--; } if (c.m > 11) { c.m = 0; c.y++; } ui.calSel = null; render(); },
   calPick: (el) => { ui.calSel = el.dataset.x && ui.calSel !== el.dataset.x ? el.dataset.x : null; render(); },
@@ -1042,7 +1104,7 @@ const A = {
     download('set-backup-' + todayIso() + '.json', JSON.stringify({ ...S, media }), 'application/json');
   },
   importJson: () => $('#importFile').click(),
-  wipe: () => { if (!confirm(T('Точно удалить все съёмки, людей и профиль? Это нельзя отменить.', 'Delete everything? This cannot be undone.'))) return; localStorage.removeItem(KEY); S = fresh(); ui.onb = null; location.hash = '#/welcome'; render(); }
+  wipe: () => { if (!confirm(T('Точно удалить все съёмки, людей и профиль? Это нельзя отменить.', 'Delete everything? This cannot be undone.'))) return; const keepDev = S.deviceId, keepPro = S.pro; localStorage.removeItem(KEY); S = fresh(); S.deviceId = keepDev; S.pro = keepPro; S.firstRun = todayIso(); ui.onb = null; location.hash = '#/welcome'; render(); }
 };
 function closeSheet() { ui.sheet = null; if (location.hash.startsWith('#/own')) location.hash = '#/calendar'; else render(); }
 function pickFiles(multi) { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if (multi) i.multiple = true; i.style.display = 'none'; document.body.appendChild(i); i.addEventListener('change', () => { onMediaFiles([...i.files]); i.remove(); }); i.click(); }
@@ -1141,7 +1203,7 @@ function loadDemo() {
 function route() {
   const h = location.hash || '#/today';
   const parts = h.replace(/^#\/?/, '').split('/');
-  if (!S.profile.onboarded && parts[0] !== 'welcome') { location.replace('#/welcome'); return null; }
+  if (!S.profile.onboarded && parts[0] !== 'welcome' && parts[0] !== 'activate') { location.replace('#/welcome'); return null; }
   return parts;
 }
 let lastHash = '';
@@ -1160,6 +1222,8 @@ function render() {
   else if (a === 'people') html = vPeople();
   else if (a === 'me') html = vMe();
   else if (a === 'settings') html = vSettings();
+  else if (a === 'pro') html = vPro();
+  else if (a === 'activate') { const code = decodeURIComponent(parts.slice(1).join('/')); location.replace('#/pro'); doActivate(code); return; }
   else if (a === 'own') { const s = getShoot(b); if (s && !ui.sheet) ui.sheet = { type: 'own', data: JSON.parse(JSON.stringify(s)), isNew: false }; html = vCalendar(); }
   else if (a === 'p' && c === 'print') html = vPrint(b);
   else if (a === 'p' && c === 'onset') html = vOnSet(b);
@@ -1203,6 +1267,8 @@ $('#importFile').addEventListener('change', (ev) => {
   r.readAsText(f); ev.target.value = '';
 });
 window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/own')) ui.sheet = null; render(); });
+if (!S.deviceId) { const a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint8Array(8)); S.deviceId = [...r].map((x) => a[x % a.length]).join('').replace(/(.{4})/, '$1-'); save(); }
+if (!S.firstRun) { S.firstRun = todayIso(); save(); }
 document.documentElement.lang = S.lang;
 render();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

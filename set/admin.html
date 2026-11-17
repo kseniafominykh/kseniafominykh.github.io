@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow"><title>SET · выдать подписку</title>
+<link rel="stylesheet" href="styles.css">
+<style>.screen{padding-bottom:40px}</style></head>
+<body><div id="app"><div class="screen">
+<div class="top"><span class="logo">set</span><span class="kicker">только для Ксении</span></div>
+<h1 class="pad4">Выдать<br>подписку</h1>
+<div class="card" id="lockCard"><h3>Пароль</h3><span class="small muted">Пароль от выдачи подписок. Без него ссылки не создаются.</span>
+<input class="inp mono" id="pass" type="password" autocomplete="current-password" placeholder="set-XXXX-XXXX-XXXX-XXXX">
+<label class="row small"><input type="checkbox" id="remember"> Запомнить на этом телефоне</label>
+<button class="btn" id="unlock">Открыть</button><span class="small" id="lockMsg" style="color:var(--red)"></span></div>
+<div id="work" style="display:none" class="col">
+<div class="card"><h3>Кому</h3>
+<label class="f">Код из сообщения<input class="inp mono" id="dev" placeholder="ABCD-EFGH" style="text-transform:uppercase;letter-spacing:.08em"></label>
+<label class="f">Имя (для себя)<input class="inp" id="who" placeholder="Аня, фотограф"></label>
+<div class="chips" id="periods"></div>
+<label class="f">Действует до<input class="inp" type="date" id="until"></label>
+<button class="btn big" id="make">Создать ссылку</button></div>
+<div class="card glow-pink" id="out" style="display:none"><h3>Готово</h3><textarea class="inp" id="link" style="min-height:110px;font-size:13px" readonly></textarea>
+<div class="grid2"><button class="btn" id="copy">Скопировать</button><button class="btn soft" id="share">Отправить…</button></div>
+<span class="small">Не забудь выбить чек в «Мой налог» на эту оплату.</span></div>
+<div class="card"><h3>Выдано</h3><div id="log" class="col small"></div></div>
+</div></div></div>
+<div id="toast"></div>
+<script>
+const K = {"pub": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhrHIfZAlgDg1cV7unG+No9YgBS15cUqxzTarcsSaT6ZHmYxbpD+xsGGApnrmvspWxIelHEvtUbkJeQ0yMRq8Xw==", "enc": "2dTZkbcet2MZya/wFvn1xc4MB3h9wr+giAqnE6t3c6gjrs8mRU+NxZgozr6M4g5tnLsDTcinF7PcsvF7DkIGaZYXrs6wRYUHa78YY7U9sFsBXiKy7v7jt+WtFCGUpi3gGaNwG6DTai728IFOHQrDpjYFWJ51kGjJCWF8Vw5YHNv740lszKPgIEeTgr6QKr/10+o2Ln0OPpmDtQ==", "salt": "xfOsX+RRbuLdVpqyLKZpKQ==", "iv": "HBYSkH7gXmfZXq2L"};
+const APP = location.origin + location.pathname.replace(/admin\.html$/, '');
+const $ = (s) => document.querySelector(s);
+const pad = (n) => String(n).padStart(2, '0');
+const iso = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+let priv = null;
+function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 2000); }
+async function unlock(pass) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  const k = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(K.salt), iterations: 600000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const raw = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(K.iv) }, k, b64(K.enc));
+  return crypto.subtle.importKey('pkcs8', raw, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+}
+async function tryUnlock(pass, silent) {
+  try { priv = await unlock(pass.trim()); $('#lockCard').style.display = 'none'; $('#work').style.display = 'flex'; if ($('#remember').checked) localStorage.setItem('set.admin.pass', pass.trim()); renderLog(); }
+  catch (e) { if (!silent) $('#lockMsg').textContent = 'Пароль не подошёл'; }
+}
+function setMonths(m) { const d = new Date(); d.setMonth(d.getMonth() + m); $('#until').value = iso(d); document.querySelectorAll('#periods .chip').forEach((c) => c.setAttribute('aria-pressed', c.dataset.m == m)); }
+$('#periods').innerHTML = [[1, '1 месяц'], [3, '3 месяца'], [12, 'год']].map(([m, l]) => '<button class="chip sm" data-m="' + m + '">' + l + '</button>').join('');
+$('#periods').addEventListener('click', (e) => { const b = e.target.closest('[data-m]'); if (b) setMonths(Number(b.dataset.m)); });
+setMonths(1);
+$('#unlock').onclick = () => tryUnlock($('#pass').value);
+$('#make').onclick = async () => {
+  let dev = $('#dev').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (dev.length !== 8) { toast('Код — 8 знаков, например ABCD-EFGH'); return; }
+  dev = dev.slice(0, 4) + '-' + dev.slice(4);
+  const until = $('#until').value; if (!until) { toast('Выбери дату'); return; }
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, priv, new TextEncoder().encode(dev + '.' + until));
+  const code = dev + '.' + until + '.' + b64u(sig);
+  const link = APP + '#/activate/' + code;
+  $('#link').value = 'Спасибо! Подписка SET до ' + until.split('-').reverse().join('.') + '. Нажми, чтобы включить:\n' + link;
+  $('#out').style.display = 'flex';
+  const log = JSON.parse(localStorage.getItem('set.admin.log') || '[]'); log.unshift({ dev, who: $('#who').value.trim(), until, at: iso(new Date()) }); localStorage.setItem('set.admin.log', JSON.stringify(log.slice(0, 300))); renderLog();
+};
+$('#copy').onclick = async () => { try { await navigator.clipboard.writeText($('#link').value); toast('Скопировано'); } catch (e) { $('#link').select(); document.execCommand('copy'); toast('Скопировано'); } };
+$('#share').onclick = async () => { if (navigator.share) { try { await navigator.share({ text: $('#link').value }); } catch (e) {} } else toast('Скопируй и отправь'); };
+function renderLog() { const log = JSON.parse(localStorage.getItem('set.admin.log') || '[]'); $('#log').innerHTML = log.length ? log.map((x) => '<div class="row between" style="border-top:1px solid var(--line);padding:6px 0"><span>' + (x.who ? x.who.replace(/[<>&]/g, '') + ' · ' : '') + '<span class="mono">' + x.dev + '</span></span><span class="mono">до ' + x.until.split('-').reverse().join('.') + '</span></div>').join('') : '<span class="muted">Пока никому</span>'; }
+const saved = localStorage.getItem('set.admin.pass'); if (saved) { $('#remember').checked = true; tryUnlock(saved, true); }
+</script></body></html>
