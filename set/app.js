@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.5 beta';
+const VERSION = '0.9.6 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -375,9 +375,8 @@ const sw = (label, sub, on, act, arg) => '<button class="switch" role="switch" a
 
 /* ---------- subscription logic ---------- */
 const isPro = () => !!(S.pro && S.pro.until >= todayIso());
-const trialDaysUsed = () => Math.max(0, daysBetween(S.firstRun || todayIso(), todayIso()));
-const trialActive = () => { const d = trialDaysUsed(); const done = S.shoots.some((x) => x.src === 'set' && x.status === 'done'); return d < SUB.trialDays || (!done && d < SUB.trialDays * 2); };
-const canCreate = () => isPro() || trialActive();
+const freeLeft = () => !S.freeUsed;
+const canCreate = () => isPro() || freeLeft();
 const b64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
 async function verifyActivation(code) {
   const parts = String(code || '').split('.');
@@ -393,8 +392,8 @@ async function verifyActivation(code) {
 }
 function subStatusText() {
   if (isPro()) return T('Подписка до ', 'Subscribed until ') + fmtDate(S.pro.until, { year: true });
-  if (trialActive()) return T('Пробный период: ', 'Trial: ') + Math.max(0, SUB.trialDays - trialDaysUsed()) + T(' дн.', ' days left');
-  return T('Пробный период закончился', 'Trial is over');
+  if (freeLeft()) return T('Первый проект — бесплатно', 'Your first project is free');
+  return T('Бесплатный проект использован', 'Free project used');
 }
 function vPro() {
   const msg = T('Привет! Оплатила подписку SET. Мой код: ', 'Hi! I paid for SET. My code: ') + S.deviceId;
@@ -540,9 +539,10 @@ function vProjects() {
 
 /* --- new shoot --- */
 function vNew() {
-  if (!canCreate()) return '<div class="screen"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span><span style="width:44px"></span></div><h1 class="pad4">' + T('Пробный период<br>закончился', 'Your trial<br>is over') + '</h1><div class="card glow-pink"><span>' + T('Все твои съёмки, люди и доход на месте. Чтобы создавать новые проекты, оформи подписку — ', 'All your shoots, people and income are still here. To create new projects, subscribe — ') + money(SUB.price) + T(' ₽ в месяц.', ' ₽ a month.') + '</span><a class="btn" href="#/pro">' + T('Оформить подписку', 'Subscribe') + '</a></div><span class="small muted pad4">' + T('Свою съёмку не через SET можно добавить в календаре бесплатно.', 'You can still log your own shoots in the calendar for free.') + '</span></div>' + nav('');
+  if (!canCreate()) return '<div class="screen"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span><span style="width:44px"></span></div><h1 class="pad4">' + T('Первый проект<br>был бесплатным', 'Your first project<br>was free') + '</h1><div class="card glow-pink"><span>' + T('Он и все твои съёмки, люди и доход остаются с тобой. Чтобы создать следующий проект, оформи подписку — ', 'It stays with you, along with your people and income. To create the next project, subscribe — ') + money(SUB.price) + T(' ₽ в месяц.', ' ₽ a month.') + '</span><a class="btn" href="#/pro">' + T('Оформить подписку', 'Subscribe') + '</a></div><span class="small muted pad4">' + T('Свою съёмку не через SET можно добавить в календаре бесплатно.', 'You can still log your own shoots in the calendar for free.') + '</span></div>' + nav('');
   const n = ui.newKind;
   let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span></div>';
+  if (!isPro()) h += '<span class="badge warn" style="align-self:flex-start">' + T('Первый проект — бесплатно', 'Your first project is free') + '</span>';
   h += '<h1 class="pad4">' + T('Что<br>снимаем?', 'What are<br>we shooting?') + '</h1>';
   Object.keys(KINDS).forEach((k) => {
     const K = KINDS[k];
@@ -972,6 +972,7 @@ const A = {
     const s = newShoot(k, { client: $('#nfClient')?.value.trim() || '', what: $('#nfWhat')?.value.trim() || '', date: $('#nfDate')?.value || '' });
     const call = normTime($('#nfCall')?.value); if (call) { const shift = mins(call) - mins(s.call); const e = mins(s.end); if (e != null && shift) { const n = (((e + shift) % 1440) + 1440) % 1440; s.end = pad(Math.floor(n / 60)) + ':' + pad(n % 60); } s.call = call; }
     if (k === 'custom' && ui.newMods) s.modules = { ...ui.newMods };
+    if (!isPro()) S.freeUsed = true;
     S.shoots.push(s); save(); ui.newKind = null; ui.newMods = null; location.hash = '#/p/' + s.id;
   },
   toggleNewMod: (el) => { ui.newMods[el.dataset.x] = !ui.newMods[el.dataset.x]; render(); },
@@ -1074,7 +1075,7 @@ const A = {
   finishShoot: (el) => { const s = getShoot(el.dataset.s); s.status = 'done'; if (!s.date) s.date = todayIso(); save(); toast(T('Съёмка в архиве и в доходе', 'Moved to archive and income')); location.hash = '#/me'; },
   reopen: (el) => { const s = getShoot(el.dataset.s); s.status = 'plan'; save(); render(); },
   shootMenu: (el) => { ui.sheet = { type: 'menu', s: el.dataset.s }; render(); },
-  dupShoot: () => { if (!canCreate()) { ui.sheet = null; location.hash = '#/pro'; return; } const s = getShoot(ui.sheet.s); const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.date = ''; c.status = 'plan'; c.what = (c.what || '') + T(' (копия)', ' (copy)'); c.team.forEach((m) => { m.id = uid(); m.status = ''; m.paid = false; }); c.looks.forEach((l) => { l.id = uid(); l.done = false; }); c.checklist.forEach((x) => { x.id = uid(); x.done = false; }); c.my = { ...c.my, paid: false, check: false, fee: '' }; S.shoots.push(c); ui.sheet = null; save(); location.hash = '#/p/' + c.id; },
+  dupShoot: () => { if (!canCreate()) { ui.sheet = null; location.hash = '#/pro'; return; } const s = getShoot(ui.sheet.s); const c = JSON.parse(JSON.stringify(s)); c.id = uid(); c.date = ''; c.status = 'plan'; c.what = (c.what || '') + T(' (копия)', ' (copy)'); c.team.forEach((m) => { m.id = uid(); m.status = ''; m.paid = false; }); c.looks.forEach((l) => { l.id = uid(); l.done = false; }); c.checklist.forEach((x) => { x.id = uid(); x.done = false; }); c.my = { ...c.my, paid: false, check: false, fee: '' }; delete c.demo; if (!isPro()) S.freeUsed = true; S.shoots.push(c); ui.sheet = null; save(); location.hash = '#/p/' + c.id; },
   deleteShoot: () => { if (!confirm(T('Удалить съёмку целиком?', 'Delete this shoot?'))) return; S.shoots = S.shoots.filter((x) => x.id !== ui.sheet.s); ui.sheet = null; save(); location.hash = '#/projects'; },
   calMove: (el) => { const c = ui.cal; c.m += Number(el.dataset.x); if (c.m < 0) { c.m = 11; c.y--; } if (c.m > 11) { c.m = 0; c.y++; } ui.calSel = null; render(); },
   calPick: (el) => { ui.calSel = el.dataset.x && ui.calSel !== el.dataset.x ? el.dataset.x : null; render(); },
@@ -1104,7 +1105,7 @@ const A = {
     download('set-backup-' + todayIso() + '.json', JSON.stringify({ ...S, media }), 'application/json');
   },
   importJson: () => $('#importFile').click(),
-  wipe: () => { if (!confirm(T('Точно удалить все съёмки, людей и профиль? Это нельзя отменить.', 'Delete everything? This cannot be undone.'))) return; const keepDev = S.deviceId, keepPro = S.pro; localStorage.removeItem(KEY); S = fresh(); S.deviceId = keepDev; S.pro = keepPro; S.firstRun = todayIso(); ui.onb = null; location.hash = '#/welcome'; render(); }
+  wipe: () => { if (!confirm(T('Точно удалить все съёмки, людей и профиль? Это нельзя отменить.', 'Delete everything? This cannot be undone.'))) return; const keepDev = S.deviceId, keepPro = S.pro; localStorage.removeItem(KEY); S = fresh(); S.deviceId = keepDev; S.pro = keepPro; S.firstRun = todayIso(); S.freeUsed = true; ui.onb = null; location.hash = '#/welcome'; render(); }
 };
 function closeSheet() { ui.sheet = null; if (location.hash.startsWith('#/own')) location.hash = '#/calendar'; else render(); }
 function pickFiles(multi) { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if (multi) i.multiple = true; i.style.display = 'none'; document.body.appendChild(i); i.addEventListener('change', () => { onMediaFiles([...i.files]); i.remove(); }); i.click(); }
@@ -1194,6 +1195,7 @@ function loadDemo() {
   const past2 = newShoot('custom', { src: 'own', client: T('Шоурум Лён', 'Linen showroom'), what: T('лукбук', 'lookbook'), date: dIso(-12), modules: { team: false, timing: false, looks: false, budget: false, print: false } }); past2.my = { role: 'model', fee: '15000', shifts: 1, paid: false, check: false, note: '' };
   const past3 = newShoot('custom', { src: 'own', client: T('Каталог Дом и сад', 'Home & Garden'), what: T('каталог', 'catalogue'), date: dIso(-30), modules: { team: false, timing: false, looks: false, budget: false, print: false } }); past3.my = { role: 'producer', fee: '40000', shifts: 2, paid: true, check: false, note: '' };
   [b, pe, cr].forEach((x) => { x.timing = genTiming(x); });
+  [b, pe, cr, past1, past2, past3].forEach((x) => { x.demo = true; });
   S.shoots.push(b, pe, cr, past1, past2, past3);
   if (!S.profile.name) S.profile.name = T('Ксения', 'Ksenia');
   save();
@@ -1269,6 +1271,7 @@ $('#importFile').addEventListener('change', (ev) => {
 window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/own')) ui.sheet = null; render(); });
 if (!S.deviceId) { const a = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = crypto.getRandomValues(new Uint8Array(8)); S.deviceId = [...r].map((x) => a[x % a.length]).join('').replace(/(.{4})/, '$1-'); save(); }
 if (!S.firstRun) { S.firstRun = todayIso(); save(); }
+if (S.freeUsed == null) { S.freeUsed = S.shoots.some((x) => x.src === 'set' && !x.demo); save(); }
 document.documentElement.lang = S.lang;
 render();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
