@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.6 beta';
+const VERSION = '0.9.7 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -39,7 +39,7 @@ function fresh() {
   return {
     v: 1,
     lang: (navigator.language || 'ru').toLowerCase().startsWith('ru') ? 'ru' : 'en',
-    profile: { name: '', city: '', insta: '', roles: [], ownRole: '', ownSkill: '', skills: [], exp: '', rate: '', unit: 'смена', contact: 'Telegram', food: [], foodOther: '', onboarded: false },
+    profile: { name: '', phone: '', city: '', insta: '', roles: [], ownRole: '', ownSkill: '', skills: [], exp: '', rate: '', unit: 'смена', contact: 'Telegram', food: [], foodOther: '', onboarded: false },
     people: [],
     shoots: []
   };
@@ -396,7 +396,7 @@ function subStatusText() {
   return T('Бесплатный проект использован', 'Free project used');
 }
 function vPro() {
-  const msg = T('Привет! Оплатила подписку SET. Мой код: ', 'Hi! I paid for SET. My code: ') + S.deviceId;
+  const msg = T('Привет! Оплатила подписку SET. Мой код: ', 'Hi! I paid for SET. My code: ') + S.deviceId + (S.profile.phone ? T(', телефон: ', ', phone: ') + S.profile.phone : '') + (S.profile.name ? ' (' + S.profile.name + ')' : '');
   let h = '<div class="screen"><div class="top">' + backBtn('#/me') + '<span class="kicker">' + T('Подписка', 'Subscription') + '</span><span style="width:44px"></span></div>';
   h += '<h1 class="pad4">SET<br>' + T('организатору', 'for organisers') + '</h1>';
   h += '<div class="card glow-pink" style="padding:22px"><span class="small">' + esc(subStatusText()) + '</span><span class="mono" style="font-size:38px;letter-spacing:-0.02em">' + money(SUB.price) + ' ₽<span class="small muted" style="font-family:var(--body)"> / ' + T('месяц', 'month') + '</span></span>' +
@@ -406,6 +406,7 @@ function vPro() {
     (SUB.payUrl ? '<a class="btn" href="' + esc(SUB.payUrl) + '" target="_blank" rel="noopener">' + T('Открыть оплату в банке', 'Open payment in your bank') + '</a>' : '<span class="small muted">' + T('Ссылка на оплату скоро появится', 'Payment link coming soon') + '</span>') +
     '<span class="tiny muted">' + T('Картой любого российского банка через приложение банка. Сумма — ', 'Any Russian bank card via your bank app. Amount: ') + money(SUB.price) + ' ₽</span></div>';
   h += '<div class="card"><h3>' + T('2. Напиши мне', '2. Message me') + '</h3><span class="small">' + T('Пришли скриншот оплаты и свой код:', 'Send the payment screenshot and your code:') + '</span><button class="btn soft mono" data-a="copyText" data-x="' + esc(S.deviceId) + '" style="font-size:22px;letter-spacing:0.08em">' + esc(S.deviceId) + '</button>' +
+    field(T('Твой номер телефона', 'Your phone number'), '<input class="inp" type="tel" inputmode="tel" autocomplete="tel" data-b="profile.phone" value="' + esc(S.profile.phone || '') + '" placeholder="+7 900 000-00-00">') +
     '<div class="grid2">' + (SUB.tg ? '<a class="btn" href="https://t.me/' + esc(SUB.tg) + '" target="_blank" rel="noopener">Telegram</a>' : '') + (SUB.wa ? '<a class="btn" href="https://wa.me/' + esc(SUB.wa) + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '</div></div>';
   h += '<div class="card"><h3>' + T('3. Нажми ссылку из ответа', '3. Tap the link I send back') + '</h3><span class="small muted">' + T('Подписка включится на этом телефоне. Данные никуда не пропадут.', 'The subscription turns on for this phone. Your data stays.') + '</span><input class="inp mono" id="actCode" placeholder="' + T('или вставь код активации сюда', 'or paste the activation code') + '"><button class="btn soft" data-a="activateManual">' + T('Активировать', 'Activate') + '</button></div>';
   h += '<span class="tiny muted pad4">' + T('Съёмки, люди и доход остаются у тебя и без подписки — без неё нельзя только создавать новые проекты.', 'Without a subscription you keep all your data — you just can’t create new projects.') + '</span></div>' + nav('');
@@ -436,6 +437,7 @@ function vWelcome() {
     h += '<div class="chips">' + chip('Русский', S.lang === 'ru', 'lang', 'ru', 'sm') + chip('English', S.lang === 'en', 'lang', 'en', 'sm') + '</div>';
     h += '<h1>' + T('Давай<br>знакомиться', 'Nice to<br>meet you') + '</h1><p class="muted" style="margin:0">' + T('Заполнишь один раз — дальше всё подставится само', 'Fill this in once — the rest fills itself in') + '</p>';
     h += '<div class="grid2">' + field(T('Имя', 'Name'), inp('profile.name', p.name, { ph: T('Как к тебе обращаться', 'Your name') })) + field(T('Город', 'City'), inp('profile.city', p.city, { ph: T('Казань', 'City') })) + '</div>';
+    h += field(T('Номер телефона', 'Phone number'), '<input class="inp" type="tel" inputmode="tel" autocomplete="tel" data-b="profile.phone" value="' + esc(p.phone || '') + '" placeholder="+7 900 000-00-00">') + '<span class="tiny muted pad4" style="margin-top:-10px">' + T('Хранится в твоём телефоне. Нужен, чтобы подключить подписку и чтобы команда могла с тобой связаться.', 'Stays on your phone. Needed for the subscription and so the team can reach you.') + '</span>';
     h += '<h2 style="margin-top:6px">' + T('Кто ты на съёмке?', 'What do you do on set?') + '</h2><span class="small muted pad4">' + T('Можно несколько', 'Pick as many as you like') + '</span>';
     ui.moreG = ui.moreG || {};
     GROUPS.forEach((g, gi) => {
@@ -473,7 +475,7 @@ function vWelcome() {
   if (done) {
     const rl = p.roles.map(roleName).concat(p.ownRole ? [p.ownRole] : []).join(' · ');
     h += '<div style="padding-top:24px" class="col"><h1>' + T('Готово', 'Done') + (p.name ? ',<br>' + esc(p.name) : '!') + '</h1><span class="muted">' + T('Твоя карточка', 'Your card') + '</span></div>';
-    h += '<div class="card glow-' + (ROLE[p.roles[0]]?.glow || 'pink') + '" style="border-radius:30px;padding:22px"><div class="row between"><span class="avatar" style="width:72px;height:72px;border-radius:36px;font-size:30px">' + esc(initials(p.name)) + '</span>' + (p.exp ? '<span class="badge">' + esc(T('опыт ', 'exp. ') + p.exp) + '</span>' : '') + '</div><span class="h1" style="font-size:34px">' + esc(p.name || T('Твоё имя', 'Your name')) + '</span><span>' + esc(rl || T('Роль не выбрана', 'No role yet')) + '</span>' + (p.insta ? '<b class="small">' + esc(p.insta.startsWith('@') ? p.insta : '@' + p.insta) + '</b>' : '') + '</div>';
+    h += '<div class="card glow-' + (ROLE[p.roles[0]]?.glow || 'pink') + '" style="border-radius:30px;padding:22px"><div class="row between"><span class="avatar" style="width:72px;height:72px;border-radius:36px;font-size:30px">' + esc(initials(p.name)) + '</span>' + (p.exp ? '<span class="badge">' + esc(T('опыт ', 'exp. ') + p.exp) + '</span>' : '') + '</div><span class="h1" style="font-size:34px">' + esc(p.name || T('Твоё имя', 'Your name')) + '</span><span>' + esc(rl || T('Роль не выбрана', 'No role yet')) + '</span>' + (p.insta ? '<b class="small">' + esc(p.insta.startsWith('@') ? p.insta : '@' + p.insta) + '</b>' : '') + (p.phone ? '<span class="small mono">' + esc(p.phone) + '</span>' : '') + '</div>';
   }
   h += '</div>';
   h += '<div class="cta nonav">';
@@ -959,6 +961,7 @@ const A = {
   onbNext: () => {
     const p = S.profile; const o = ui.onb;
     if (o.step === 1 && !p.name.trim()) { toast(T('Напиши, как тебя зовут', 'Tell us your name')); $('[data-b="profile.name"]')?.focus(); return; }
+    if (o.step === 1 && String(p.phone || '').replace(/\D/g, '').length < 10) { toast(T('Укажи номер телефона', 'Add your phone number')); $('[data-b="profile.phone"]')?.focus(); return; }
     if (o.step === 1 && !p.roles.length && !p.ownRole.trim()) { toast(T('Выбери хотя бы одну роль', 'Pick at least one role')); return; }
     const clientOnly = p.roles.length > 0 && !p.ownRole && p.roles.every((r) => CLIENT_ROLES.includes(r));
     o.step = clientOnly && o.step === 1 ? 4 : o.step + 1; window.scrollTo(0, 0); render();
