@@ -25,7 +25,7 @@
 <div id="toast"></div>
 <script>
 const K = {"pub": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhrHIfZAlgDg1cV7unG+No9YgBS15cUqxzTarcsSaT6ZHmYxbpD+xsGGApnrmvspWxIelHEvtUbkJeQ0yMRq8Xw==", "enc": "2dTZkbcet2MZya/wFvn1xc4MB3h9wr+giAqnE6t3c6gjrs8mRU+NxZgozr6M4g5tnLsDTcinF7PcsvF7DkIGaZYXrs6wRYUHa78YY7U9sFsBXiKy7v7jt+WtFCGUpi3gGaNwG6DTai728IFOHQrDpjYFWJ51kGjJCWF8Vw5YHNv740lszKPgIEeTgr6QKr/10+o2Ln0OPpmDtQ==", "salt": "xfOsX+RRbuLdVpqyLKZpKQ==", "iv": "HBYSkH7gXmfZXq2L"};
-const APP = location.origin + location.pathname.replace(/admin\.html$/, '');
+const APP = location.origin + '/set-app/';
 const $ = (s) => document.querySelector(s);
 const pad = (n) => String(n).padStart(2, '0');
 const iso = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
