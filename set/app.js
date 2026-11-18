@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.7 beta';
+const VERSION = '0.9.8 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -161,6 +161,8 @@ const GROUPS = [
 const ROLE = {};
 GROUPS.forEach((g) => g.roles.forEach((r) => { ROLE[r[0]] = { id: r[0], ru: r[1], en: r[2], skills: r[3], glow: g.glow, more: !!r[4] }; }));
 ROLE.art = ROLE.creative;
+const SK_EN = {"брифы": "briefs", "сметы": "budgets", "кастинг": "casting", "локации": "locations", "ведение клиента": "client management", "договоры": "contracts", "бартер с брендами": "brand barter deals", "логистика": "logistics", "реклама": "commercials", "клипы": "music videos", "fashion-видео": "fashion films", "рилсы": "reels", "работа с актёрами": "directing actors", "раскадровка": "storyboards", "сценарий": "script", "концепция": "concept", "мудборды": "moodboards", "арт-дирекшн на площадке": "on-set art direction", "контроль кадра": "frame control", "визуальный стиль бренда": "brand visual identity", "закупки": "purchasing", "встреча команды": "meeting the team", "тайминг на площадке": "on-set schedule", "возврат вещей": "returns", "бюджеты кампаний": "campaign budgets", "переговоры с брендом": "brand negotiations", "подбор подрядчиков": "vendor sourcing", "площадка": "venue", "график смен": "shift schedule", "разрешения": "permits", "контроль расходов": "cost control", "тайминг": "schedule", "вызывные": "call sheets", "порядок сцен": "scene order", "дисциплина на площадке": "set discipline", "учёт дублей": "take logging", "монтажная непрерывность": "continuity", "модели": "models", "герои": "real people", "лонг-листы": "long lists", "пробы": "auditions", "договорённости с агентствами": "agency deals", "поиск локаций": "location scouting", "договор с площадкой": "venue contracts", "доставка": "delivery", "встреча людей": "greeting people", "сторис": "stories", "контент-план": "content plan", "съёмка на телефон": "phone shooting", "fashion": "fashion", "бьюти": "beauty", "предметка": "product", "портрет": "portrait", "репортаж": "reportage", "интерьер": "interiors", "еда": "food", "съёмка на плёнку": "film photography", "ретушь сам": "own retouching", "ивенты": "events", "монтирую сам": "own editing", "стабилизатор": "gimbal", "контент на телефон": "phone content", "монтаж в телефоне": "phone editing", "импульсный свет": "strobes", "постоянный свет": "continuous light", "свой свет": "own lights", "дым-машина": "haze machine", "световые схемы": "lighting setups", "свет": "lighting", "отражатели": "reflectors", "бэкапы": "backups", "сборка-разборка": "set-up and strike", "кинотехника": "cinema cameras", "фокус": "focus", "карточки": "cards", "сборка камеры": "camera build", "стедикам": "Steadicam", "роним": "Ronin", "проходы": "walk-and-talks", "тележка": "dolly", "кран": "crane", "риг на авто": "car rig", "съёмка в ноутбук": "tethered shooting", "превью клиенту": "client previews", "цвет на площадке": "on-set colour", "мониторы для клиента": "client monitors", "запись дублей": "take recording", "фото": "photo", "видео": "video", "рилсы со съёмки": "BTS reels", "сторис для бренда": "brand stories", "съёмка с воздуха": "aerial", "свой дрон": "own drone", "FPV": "FPV", "подбор образов": "styling", "закуп с возвратом": "refundable buying", "аренда вещей": "wardrobe rental", "свой гардероб": "own wardrobe", "работа с брендом": "brand collaboration", "шоурумы": "showrooms", "нюд": "nude", "вечерний": "evening", "графичный": "graphic", "бьюти крупным планом": "beauty close-ups", "грим для видео": "video make-up", "мужской грим": "men's grooming", "укладки": "styling", "плетения": "braids", "парики": "wigs", "ретро-укладки": "retro hair", "стрижка на площадке": "on-set haircuts", "дизайн": "nail art", "руки для крупных планов": "hand close-ups", "накладные ногти": "press-ons", "отпаривание": "steaming", "переодевания": "changes", "учёт вещей": "inventory", "одевание": "dressing", "учёт и возврат вещей": "inventory and returns", "пошив": "tailoring", "исторический костюм": "period costume", "кино и клипы": "film and music videos", "подгонка по фигуре": "fittings", "срочный ремонт": "quick repairs", "борода": "beard", "стрижка": "haircut", "раны и шрамы": "wounds and scars", "возраст": "ageing", "фантазийный грим": "fantasy make-up", "боди-арт": "body art", "коммерция": "commercial", "каталог": "catalogue", "маркетплейсы": "marketplaces", "руки и детали": "hands and details", "бельё": "lingerie", "плюс-сайз": "plus-size", "короткий метр": "short films", "говорю на камеру": "on-camera talking", "импровизация": "improv", "свой блог": "own blog", "интеграции": "sponsorships", "UGC": "UGC", "не модель": "non-model", "эксперт": "expert", "сотрудник бренда": "brand staff", "семья": "family", "современный танец": "modern dance", "хореография для клипов": "music video choreography", "contemporary": "contemporary", "хип-хоп": "hip-hop", "постановка движения": "movement direction", "позинг": "posing", "фон": "background", "подбор моделей": "model selection", "условия": "terms", "собаки": "dogs", "кошки": "cats", "лошади": "horses", "циклорама": "cyclorama", "интерьерные залы": "interior sets", "гримёрка": "make-up room", "парковка": "parking", "декорации": "sets", "фоны": "backdrops", "строительство сета": "set building", "эскизы": "sketches", "поиск реквизита": "prop sourcing", "аренда": "rental", "возврат": "returns", "изготовление": "prop making", "композиции": "arrangements", "инсталляции": "installations", "сухоцветы": "dried flowers", "наполнение кадра": "set dressing", "текстиль": "textiles", "расстановка": "arrangement", "конструкции": "structures", "покраска": "painting", "монтаж и демонтаж": "build and strike", "еда в кадре": "food on camera", "напитки": "drinks", "кондитерка": "pastry", "камеры": "cameras", "грип": "grip", "обеды на площадку": "set lunches", "кофе-брейк": "coffee breaks", "вегетарианское меню": "vegetarian menu", "перевозка команды": "crew transport", "перевозка техники": "gear transport", "минивэн": "minivan", "охрана техники": "gear security", "охрана вещей бренда": "brand goods security", "бьюти-ретушь": "beauty retouching", "частотка": "frequency separation", "коллажи": "composites", "субтитры": "subtitles", "вертикальный формат": "vertical video", "запись на площадке": "on-set recording", "петлички": "lavaliers", "бум": "boom", "сведение": "mixing", "цветокор видео": "video grading", "цвет фото": "photo colour", "LUT под бренд": "brand LUTs", "титры": "titles", "анимация": "animation", "3D": "3D", "упаковка рилсов": "reel packaging", "3D-продукт": "3D product", "композитинг": "compositing", "визуальные эффекты": "VFX", "музыка под ролик": "score", "саунд-дизайн": "sound design", "лицензии на музыку": "music licensing", "вёрстка": "layout", "обложки": "covers", "иллюстрации": "illustrations", "упаковка кампании": "campaign packaging", "лукбуки": "lookbooks", "кампании": "campaigns", "бартер": "barter", "love story": "love story", "семейная": "family", "для блога": "for a blog", "подарочный сертификат": "gift voucher", "SMM": "SMM", "модельное агентство": "model agency", "утверждение кадров": "shot approval", "контроль продукта": "product control", "цели кампании": "campaign goals", "запуск": "launch"};
+const skillName = (x) => (L() === 'en' ? SK_EN[x] || x : x);
 const roleName = (id) => (ROLE[id] ? (L() === 'en' ? ROLE[id].en : ROLE[id].ru) : (id || ''));
 const CLIENT_ROLES = ['brand', 'agency', 'client', 'brandrep', 'marketing'];
 const FOOD = [['all', 'ем всё', 'eat everything'], ['nomeat', 'без мяса', 'no meat'], ['nofish', 'без рыбы', 'no fish'], ['gluten', 'без глютена', 'gluten-free'], ['lactose', 'без лактозы', 'lactose-free'], ['vegan', 'веган', 'vegan']];
@@ -400,7 +402,7 @@ function vPro() {
   let h = '<div class="screen"><div class="top">' + backBtn('#/me') + '<span class="kicker">' + T('Подписка', 'Subscription') + '</span><span style="width:44px"></span></div>';
   h += '<h1 class="pad4">SET<br>' + T('организатору', 'for organisers') + '</h1>';
   h += '<div class="card glow-pink" style="padding:22px"><span class="small">' + esc(subStatusText()) + '</span><span class="mono" style="font-size:38px;letter-spacing:-0.02em">' + money(SUB.price) + ' ₽<span class="small muted" style="font-family:var(--body)"> / ' + T('месяц', 'month') + '</span></span>' +
-    ['Сколько угодно съёмок', 'Смета с бартером и резервом', 'Лист на площадку и режим площадки', 'Мой доход и выгрузка для налоговой'].map((x) => '<span class="small">✓ ' + esc(T(x, x)) + '</span>').join('') + '</div>';
+    [[T('Сколько угодно съёмок', 'Unlimited shoots')], [T('Смета с бартером и резервом', 'Budgets with barter and contingency')], [T('Лист на площадку и режим площадки', 'Set sheet and on-set mode')], [T('Мой доход и выгрузка для налоговой', 'Income tracking and tax export')]].map((x) => '<span class="small">✓ ' + esc(x[0]) + '</span>').join('') + '</div>';
   h += '<div class="card"><h3>' + T('1. Оплати по СБП', '1. Pay via SBP') + '</h3>' +
     (SUB.qr ? '<img src="' + esc(SUB.qr) + '" alt="QR СБП" style="width:220px;max-width:100%;align-self:center;border-radius:16px;background:#fff;padding:10px">' : '') +
     (SUB.payUrl ? '<a class="btn" href="' + esc(SUB.payUrl) + '" target="_blank" rel="noopener">' + T('Открыть оплату в банке', 'Open payment in your bank') + '</a>' : '<span class="small muted">' + T('Ссылка на оплату скоро появится', 'Payment link coming soon') + '</span>') +
@@ -417,6 +419,102 @@ async function doActivate(code) {
   if (r.ok) { S.pro = { until: r.until, code }; save(); toast(T('Подписка включена до ', 'Subscribed until ') + fmtDate(r.until, { year: true })); location.hash = '#/me'; }
   else toast(r.why === 'device' ? T('Этот код для другого телефона', 'This code is for another device') : T('Код не подошёл — проверь, что скопирован целиком', 'Code didn’t work — copy it whole'));
 }
+
+
+/* ---------- tips (first-run coaching) ---------- */
+const TIPS = {
+  today: ['Это главный экран: ближайшая съёмка и что важно сделать сейчас. «+» внизу — новая съёмка, аватар — твой профиль и доход.', 'Your home screen: the next shoot and what matters now. “+” below starts a new shoot; the avatar opens your profile and income.'],
+  new: ['Выбери формат — от него зависят подсказки и разделы. Потом всё можно поменять.', 'Pick a format — it shapes hints and sections. You can change everything later.'],
+  project: ['Здесь главное: дата, место, подготовка. Вкладки сверху — мудборд, тайминг, команда, образы, смета. «Отправить команде» собирает всё в одно сообщение.', 'The essentials: date, venue, prep. Tabs above: moodboard, schedule, team, looks, budget. “Send to the team” packs it all into one message.'],
+  mood: ['Добавь фото с телефона и ссылки на Pinterest. Команде всё уйдёт одной пачкой.', 'Add photos and Pinterest links. The team gets them in one go.'],
+  timing: ['Нажми «⋯» у строки — добавишь «до», «кто» и что идёт параллельно. В режиме площадки SET будет подсказывать по этому таймингу.', 'Tap “⋯” on a row to add “until”, “who” and what runs in parallel. On set, SET will prompt you along this schedule.'],
+  team: ['Отмечай статус: позвала → идёт. «Написать» готовит приглашение с условиями. Ставки видишь только ты.', 'Track status: asked → in. “Message” drafts an invite with terms. Only you see rates.'],
+  looks: ['Образ — это модель, одежда, мейк, волосы и фото в одной карточке. На площадке они пойдут по очереди.', 'A look = model, outfit, make-up, hair and a photo on one card. On set they queue up in order.'],
+  budget: ['Нажми на строку — количество, ставка и форма оплаты: деньги, бартер, сертификат. «Подтянуть команду» перенесёт людей сюда.', 'Tap a line for qty, rate and payment: money, barter, voucher. “Pull in the team” brings people here.'],
+  onset: ['Режим площадки: что идёт сейчас, что дальше и образы по очереди. Экран не гаснет. Разреши уведомления — SET напомнит за 10 минут до каждого пункта, пока приложение открыто.', 'On-set mode: what’s now, what’s next and looks in order. The screen stays on. Allow notifications and SET reminds you 10 minutes before each item while the app is open.'],
+  calendar: ['Пунктиром — съёмки не через SET. Добавляй их, чтобы ничего не наложилось и всё попало в доход.', 'Dashed = shoots outside SET. Log them so nothing overlaps and income adds up.'],
+  people: ['Твоя база: все, с кем ты снимаешь. Люди добавляются сами, когда зовёшь их в проект.', 'Your people: everyone you shoot with. They’re added when you invite them to a project.'],
+  me: ['Деньги и смены за период. Нажми на съёмку — поправишь сумму, оплату и чек.', 'Money and shifts for a period. Tap a shoot to edit the amount, payment and receipt.']
+};
+function tip(key) {
+  if (S.tipsOff || (S.seenTips || {})[key] || !TIPS[key]) return '';
+  return '<div class="hint" style="background:rgba(var(--sky),0.22)"><span class="dot" style="background:rgb(var(--cobalt));box-shadow:0 0 0 4px rgba(var(--cobalt),0.18)"></span><span class="grow">' + esc(L() === 'en' ? TIPS[key][1] : TIPS[key][0]) + '</span><button class="btn sm soft" data-a="tipOk" data-x="' + key + '">' + T('Понятно', 'Got it') + '</button></div>';
+}
+
+/* ---------- notifications ---------- */
+const notifSupported = () => 'Notification' in window;
+const notifState = () => (notifSupported() ? Notification.permission : 'unsupported');
+async function notify(title, body) {
+  try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (e) { /* no vibration */ }
+  toast(title + (body ? ' · ' + body : ''));
+  if (notifState() !== 'granted') return;
+  try { const reg = await navigator.serviceWorker?.ready; if (reg) { reg.showNotification(title, { body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'set-' + title }); return; } } catch (e) { /* fall through */ }
+  try { new Notification(title, { body, icon: 'icons/icon-192.png' }); } catch (e) { /* not allowed here */ }
+}
+function notifCard(compact) {
+  const st = notifState();
+  const isIOS = /iPhone|iPad/.test(navigator.userAgent);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (st === 'granted') return compact ? '' : '<div class="card"><h3>' + T('Уведомления', 'Notifications') + '</h3><span class="small">' + T('Включены ✓ SET напомнит о пунктах тайминга в режиме площадки, пока приложение открыто.', 'On ✓ SET reminds you of schedule items in on-set mode while the app is open.') + '</span><button class="btn soft sm" data-a="testNotif">' + T('Проверить', 'Test') + '</button></div>';
+  if (st === 'unsupported' || (isIOS && !standalone)) return compact ? '' : '<div class="card"><h3>' + T('Уведомления', 'Notifications') + '</h3><span class="small muted">' + T('На iPhone уведомления работают, только если SET добавлен на экран «Домой» и открыт оттуда.', 'On iPhone, notifications work only when SET is added to the Home Screen and opened from there.') + '</span></div>';
+  if (st === 'denied') return compact ? '' : '<div class="card"><h3>' + T('Уведомления', 'Notifications') + '</h3><span class="small muted">' + T('Запрещены. Включить можно в настройках телефона → SET → Уведомления.', 'Blocked. Turn them on in your phone settings → SET → Notifications.') + '</span></div>';
+  return '<div class="' + (compact ? 'hint' : 'card') + '"' + (compact ? ' style="align-items:center"' : '') + '>' + (compact ? '<span class="dot"></span>' : '<h3>' + T('Уведомления', 'Notifications') + '</h3>') + '<span class="' + (compact ? 'grow' : 'small') + '">' + T('Разреши уведомления — SET напомнит за 10 минут до каждого пункта тайминга.', 'Allow notifications — SET reminds you 10 minutes before each schedule item.') + '</span><button class="btn sm' + (compact ? ' soft' : '') + '" data-a="askNotif">' + T('Разрешить', 'Allow') + '</button></div>';
+}
+
+/* ---------- on-set coach: what's now, what's next, nudges ---------- */
+function setClock(s) {
+  // returns minutes since day start of the shoot (handles overnight), or null if not shoot day
+  const now = new Date(); const t = todayIso(); const y = isoOf(new Date(Date.now() - 864e5));
+  const nm = now.getHours() * 60 + now.getMinutes();
+  if (s.date === t) return nm < (mins(s.call) ?? 0) - 120 ? nm + 1440 : nm;
+  if (s.date === y && mins(s.end) != null && mins(s.end) < (mins(s.call) ?? 0)) return nm + 1440;
+  return null;
+}
+function coach(s) {
+  const nowK = setClock(s);
+  if (nowK == null) return null;
+  const rows = sortedTiming(s).map((x) => ({ ...x, k: dayKey(s, x.t), k2: x.t2 ? dayKey(s, x.t2) : null }));
+  const callK = mins(s.call) ?? 0; let endK = mins(s.end); if (endK != null && endK <= callK) endK += 1440;
+  let cur = null, next = null;
+  rows.forEach((r, i) => { const until = r.k2 ?? (rows[i + 1] ? rows[i + 1].k : endK ?? r.k + 60); if (r.k <= nowK && nowK < until) cur = { ...r, until }; });
+  next = rows.find((r) => r.k > nowK) || null;
+  const nudges = [];
+  const elapsed = nowK - callK;
+  if (elapsed >= 300 && !hasMeal(s)) nudges.push(T('Команда работает уже ' + Math.floor(elapsed / 60) + ' ч — пора покормить людей.', 'The crew has worked ' + Math.floor(elapsed / 60) + 'h — time to feed people.'));
+  if (endK != null && endK - nowK <= 30 && endK - nowK > 0) nudges.push(T('До конца ' + (endK - nowK) + ' мин — начинайте собирать вещи и свет.', (endK - nowK) + ' min to wrap — start packing clothes and light.'));
+  if (endK != null && nowK > endK) nudges.push(T('Переработка: уже ' + (nowK - endK) + ' мин сверх тайминга. Предупреди команду и заказчика.', 'Overtime: ' + (nowK - endK) + ' min over. Let the crew and client know.'));
+  // pace of looks across the shooting window
+  const shootRows = rows.filter((r) => /съёмк|образ|shoot|look/i.test(r.w) && !/обед|lunch/i.test(r.w));
+  if (s.looks.length && shootRows.length) {
+    const a = shootRows[0].k; const lastR = shootRows[shootRows.length - 1]; const b = lastR.k2 ?? (rows[rows.indexOf(rows.find((r) => r.id === lastR.id)) + 1]?.k ?? endK ?? a + 180);
+    if (nowK > a && nowK < b && b > a) {
+      const expected = Math.floor(s.looks.length * (nowK - a) / (b - a));
+      const done = s.looks.filter((l) => l.done).length;
+      if (expected - done >= 1) nudges.push(T('Отстаём на ' + (expected - done) + ' ' + plural(expected - done, 'образ', 'образа', 'образов') + ' — ускоряемся или сокращаем кадры.', 'Behind by ' + (expected - done) + ' look(s) — speed up or cut shots.'));
+      else if (done - expected >= 1) nudges.push(T('Идём с опережением — можно снять дубли или бонусные кадры.', 'Ahead of schedule — time for extra takes.'));
+    }
+  }
+  return { nowK, cur, next, nudges, endK };
+}
+const clockText = (k) => pad(Math.floor(((k % 1440) + 1440) % 1440 / 60)) + ':' + pad(((k % 60) + 60) % 60);
+let coachTimer = null, wakeLock = null;
+const fired = new Set();
+function coachTick() {
+  const parts = (location.hash || '').replace(/^#\/?/, '').split('/');
+  if (parts[0] !== 'p' || parts[2] !== 'onset') return stopCoach();
+  const s = getShoot(parts[1]); if (!s) return;
+  const c = coach(s);
+  if (c) {
+    if (c.next) { const left = c.next.k - c.nowK; const key = s.id + c.next.id;
+      if (left <= 10 && left > 0 && !fired.has(key + '10')) { fired.add(key + '10'); notify(T('Через ' + left + ' мин', 'In ' + left + ' min'), c.next.t + ' — ' + c.next.w + (c.next.who ? ' (' + c.next.who + ')' : '')); }
+      if (left <= 0 && !fired.has(key + '0')) { fired.add(key + '0'); notify(T('Сейчас', 'Now'), c.next.w); } }
+    c.nudges.forEach((n) => { const key = s.id + n.slice(0, 18); if (!fired.has(key)) { fired.add(key); notify(T('Подсказка', 'Heads-up'), n); } });
+  }
+  if (!ui.sheet && !document.activeElement?.matches?.('input,textarea,select')) render();
+}
+function startCoach() { if (coachTimer) return; coachTimer = setInterval(coachTick, 30000); setTimeout(coachTick, 1500); try { navigator.wakeLock?.request('screen').then((w) => { wakeLock = w; }).catch(() => {}); } catch (e) { /* no wake lock */ } }
+function stopCoach() { if (coachTimer) { clearInterval(coachTimer); coachTimer = null; } try { wakeLock?.release(); } catch (e) { /* ignore */ } wakeLock = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && coachTimer && !wakeLock) { try { navigator.wakeLock?.request('screen').then((w) => { wakeLock = w; }).catch(() => {}); } catch (e) { /* ignore */ } } });
 
 /* ========== VIEWS ========== */
 
@@ -456,7 +554,7 @@ function vWelcome() {
     h += '<h1>' + T('Что<br>умеешь', 'What you<br>do best') + '</h1><p class="muted" style="margin:0">' + T('Это попадёт в твою карточку', 'This goes on your card') + '</p>';
     p.roles.filter((r) => !CLIENT_ROLES.includes(r)).forEach((r) => {
       const R = ROLE[r];
-      h += '<div class="card glow-' + R.glow + '"><h3>' + esc(roleName(r)) + '</h3><div class="chips">' + R.skills.map((sk) => chip(sk, p.skills.includes(r + ':' + sk), 'toggleSkill', r + ':' + sk, 'sm')).join('') + '</div></div>';
+      h += '<div class="card glow-' + R.glow + '"><h3>' + esc(roleName(r)) + '</h3><div class="chips">' + R.skills.map((sk) => chip(skillName(sk), p.skills.includes(r + ':' + sk), 'toggleSkill', r + ':' + sk, 'sm')).join('') + '</div></div>';
     });
     if (p.ownRole) h += '<div class="card"><h3>' + esc(p.ownRole) + '</h3>' + inp('profile.ownSkill', p.ownSkill, { ph: T('Что делаешь на съёмке? Например: свет для предметки', 'What do you do on set?') }) + '<span class="tiny muted">' + T('Новые роли мы смотрим и добавляем в общий список', 'We review new roles and add them for everyone') + '</span></div>';
     if (!p.roles.length && !p.ownRole) h += '<div class="card">' + T('Вернись на шаг назад и выбери, кто ты на съёмке', 'Go back and pick your role') + '</div>';
@@ -498,6 +596,7 @@ function vToday() {
   let h = '<div class="screen">';
   h += '<div class="top"><span class="logo">set</span><div class="row"><a class="iconbtn" href="#/settings" aria-label="' + T('Настройки', 'Settings') + '">' + I.gear + '</a><a class="avatar" href="#/me" aria-label="' + T('Профиль и доход', 'Profile and income') + '">' + esc(initials(S.profile.name)) + '</a></div></div>';
   h += '<div class="col pad4" style="gap:4px"><span class="kicker">' + esc(WD_L[L()][d.getDay()]) + ', ' + fmtDate(t) + '</span><h1>' + (todays.length ? T('Сегодня<br>съёмка', 'Shoot<br>today') : (nextS ? T('Сегодня<br>спокойно', 'A calm<br>day') : T('Чистый<br>лист', 'A blank<br>page'))) + '</h1></div>';
+  h += tip('today');
   if (!S.shoots.length) {
     h += '<div class="card glow-pink" style="padding:22px"><h2>' + T('Первая съёмка', 'Your first shoot') + '</h2><span>' + T('Создай проект — тайминг, команда и образы соберутся в одном месте.', 'Create a project — schedule, team and looks in one place.') + '</span><a class="btn" href="#/new">' + T('Новая съёмка', 'New shoot') + '</a><button class="textbtn" data-a="demo">' + T('Сначала посмотреть на примере', 'Explore an example first') + '</button></div>';
   }
@@ -545,7 +644,7 @@ function vNew() {
   const n = ui.newKind;
   let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/today') + '<span class="kicker">' + T('Новая съёмка', 'New shoot') + '</span></div>';
   if (!isPro()) h += '<span class="badge warn" style="align-self:flex-start">' + T('Первый проект — бесплатно', 'Your first project is free') + '</span>';
-  h += '<h1 class="pad4">' + T('Что<br>снимаем?', 'What are<br>we shooting?') + '</h1>';
+  h += '<h1 class="pad4">' + T('Что<br>снимаем?', 'What are<br>we shooting?') + '</h1>' + tip('new');
   Object.keys(KINDS).forEach((k) => {
     const K = KINDS[k];
     h += '<button class="card glow-' + K.glow + '" data-a="setUi" data-x="newKind|' + k + '" aria-pressed="' + (n === k) + '" style="text-align:left;border:2px solid ' + (n === k ? 'var(--ink)' : 'transparent') + '"><div class="row between"><h2>' + esc(L() === 'en' ? K.en : K.ru) + '</h2>' + (n === k ? '<span class="check on">✓</span>' : '') + '</div><span class="small">' + esc(K.sub[L() === 'en' ? 1 : 0]) + '</span></button>';
@@ -577,6 +676,7 @@ function vProject(id, tab) {
   let h = '<div class="screen has-cta"><div class="top">' + backBtn('#/projects') + '<span class="kicker">' + esc(L() === 'en' ? KINDS[s.kind]?.en : KINDS[s.kind]?.ru) + '</span><button class="iconbtn" data-a="shootMenu" data-s="' + s.id + '" aria-label="' + T('Ещё', 'More') + '">⋯</button></div>';
   h += '<div class="col pad4" style="gap:4px"><span class="kicker">' + (s.date ? fmtDate(s.date, { wd: true }) + ' · ' + relDay(s.date) : T('дата не выбрана', 'no date yet')) + '</span><h1 style="font-size:40px">' + esc(titleOf(s)) + '</h1></div>';
   h += '<div class="seg">' + tabs.map(([k, l]) => chip(l, tab === k, 'go', '#/p/' + s.id + '/' + k)).join('') + '</div>';
+  h += tip({ main: 'project', mood: 'mood', timing: 'timing', team: 'team', looks: 'looks', budget: 'budget' }[tab]);
   if (tab === 'main') h += pMain(s);
   if (tab === 'timing') h += pTiming(s) + pTimingClear(s);
   if (tab === 'mood') h += pMood(s);
@@ -719,7 +819,18 @@ function vOnSet(id) {
   const nextT = s.date === todayIso() || s.date === isoOf(new Date(Date.now() - 864e5)) ? tl.find((x) => dayKey(s, x.t) > nmK) : null;
   let h = '<div class="screen dark has-cta" style="margin:0 -0px"><div class="top"><span class="kicker" style="color:#9A968C">' + T('Режим площадки', 'On set') + ' · ' + esc(titleOf(s)) + '</span><a class="iconbtn" href="#/p/' + s.id + '" aria-label="' + T('Выйти', 'Exit') + '">' + I.x + '</a></div>';
   h += '<div class="row between" style="align-items:flex-end"><span class="big-date" style="font-size:84px">' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + '</span><span class="mono small" style="color:#9A968C;padding-bottom:10px">' + (looks.length - left.length) + '/' + looks.length + ' ' + T('образов', 'looks') + '</span></div>';
-  if (nextT) h += '<div class="hint"><span class="dot"></span><span>' + T('Дальше в ', 'Next at ') + esc(nextT.t) + ': ' + esc(nextT.w) + '</span></div>';
+  h += tip('onset') + notifCard(true);
+  let nudgeHtml = '';
+  const c = coach(s);
+  if (c) {
+    if (c.cur) { const span = Math.max(1, c.cur.until - c.cur.k); const pct = Math.min(100, Math.round((c.nowK - c.cur.k) / span * 100));
+      h += '<div style="background:#232328;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:8px"><div class="row between"><span class="mono small" style="color:#C9C5BB">' + T('СЕЙЧАС', 'NOW') + ' · ' + esc(c.cur.t) + '–' + esc(clockText(c.cur.until)) + '</span><span class="mono small" style="color:#C9C5BB">' + T('ещё ', '') + Math.max(0, c.cur.until - c.nowK) + T(' мин', ' min left') + '</span></div><b style="font-size:20px">' + esc(c.cur.w) + '</b>' + (c.cur.who ? '<span class="small" style="color:#C9C5BB">' + esc(c.cur.who) + '</span>' : '') + (c.cur.det ? '<span class="small" style="color:#C9C5BB">' + esc(c.cur.det) + '</span>' : '') + '<span style="height:6px;border-radius:3px;background:#3A3A3A;overflow:hidden"><i style="display:block;height:100%;width:' + pct + '%;background:#ECE97E"></i></span></div>'; }
+    if (c.next) h += '<div class="hint"><span class="dot"></span><span class="grow">' + T('Через ', 'In ') + (c.next.k - c.nowK) + T(' мин', ' min') + ' · <b>' + esc(c.next.t) + '</b> ' + esc(c.next.w) + (c.next.who ? ' · ' + esc(c.next.who) : '') + '</span></div>';
+    c.nudges.forEach((n) => { nudgeHtml += '<div class="hint" style="background:#3A2A1E"><span class="dot" style="background:#EE4A3B;box-shadow:0 0 0 4px rgba(238,74,59,.25)"></span><span>' + esc(n) + '</span></div>'; });
+    if (!c.cur && !c.next && !s.timing.length) h += '<div class="hint"><span class="dot"></span><span>' + T('Заполни тайминг — и SET будет подсказывать, что сейчас и что дальше.', 'Fill in the schedule and SET will show what’s now and next.') + '</span></div>';
+  } else if (s.timing.length) {
+    h += '<div class="hint"><span class="dot"></span><span>' + T('Подсказки по таймингу включатся в день съёмки: ', 'Schedule prompts switch on on the shoot day: ') + (s.date ? esc(fmtDate(s.date, { wd: true })) : T('поставь дату', 'set a date')) + '.</span></div>';
+  }
   if (!looks.length) h += '<div class="hint"><span class="dot"></span><span>' + T('Добавь образы в проекте — здесь они пойдут по очереди.', 'Add looks in the project — they’ll queue here.') + '</span></div>';
   if (cur) {
     const i = looks.indexOf(cur);
@@ -729,6 +840,7 @@ function vOnSet(id) {
   } else if (looks.length) {
     h += '<div style="background:#ECE97E;color:var(--ink);border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:10px"><span class="h1" style="font-size:44px">' + T('Снято!', 'That’s a wrap!') + '</span><span>' + T('Все образы сняты. Вещи — по списку возврата.', 'All looks shot. Pack and return the clothes.') + '</span><a class="btn" href="#/p/' + s.id + '/wrap">' + T('Что дальше', 'What’s next') + '</a></div>';
   }
+  h += nudgeHtml;
   if (looks.length) h += '<div class="card tight" style="background:#232328">' + looks.map((l, i) => '<button class="li" data-a="toggleLook" data-s="' + s.id + '" data-x="' + l.id + '" style="color:#fff"><span class="check ' + (l.done ? 'on' : '') + '">' + (l.done ? '✓' : '') + '</span><span class="grow ' + (l.done ? 'strike' : '') + '">' + pad(i + 1) + ' · ' + esc(l.name || '') + (l.model ? ' · ' + esc(l.model) : '') + '</span></button>').join('') + '</div>';
   h += '</div>';
   if (cur) h += '<div class="cta nonav dark"><button class="btn big white" data-a="toggleLook" data-s="' + s.id + '" data-x="' + cur.id + '">' + T('Снято — следующий', 'Shot — next') + '</button></div>';
@@ -784,7 +896,7 @@ function vCalendar() {
     if (sel === iso) cls += ' sel';
     h += '<button class="' + cls + '" data-a="calPick" data-x="' + iso + '" aria-label="' + esc(fmtDate(iso)) + (list.length ? ', ' + list.length + ' ' + T('съёмки', 'shoots') : '') + '">' + d + '</button>';
   }
-  h += '</div><div class="row wrap small muted pad4" style="gap:14px"><span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:5px;background:rgb(var(--pink))"></span>' + T('в SET', 'in SET') + '</span><span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:5px;border:1.5px dashed var(--ink)"></span>' + T('не через SET', 'outside SET') + '</span></div>';
+  h += '</div>' + tip('calendar') + '<div class="row wrap small muted pad4" style="gap:14px"><span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:5px;background:rgb(var(--pink))"></span>' + T('в SET', 'in SET') + '</span><span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:5px;border:1.5px dashed var(--ink)"></span>' + T('не через SET', 'outside SET') + '</span></div>';
   h += '<button class="card dashed" data-a="ownSheet" data-x="' + esc(sel || '') + '" style="text-align:left"><b>' + T('+ Своя съёмка', '+ Add your own shoot') + '</b><span class="small muted">' + T('Не всё идёт через приложение — отметь, чтобы не наложилось и попало в доход', 'Not everything runs through the app — log it so nothing overlaps and it counts in your income') + '</span></button>';
   const prefix = c.y + '-' + pad(c.m + 1);
   const monthList = S.shoots.filter((s) => s.date && (sel ? s.date === sel : s.date.startsWith(prefix))).sort(sortByDate);
@@ -804,7 +916,7 @@ function vCalendar() {
 function vPeople() {
   const q = (ui.q || '').toLowerCase();
   const list = S.people.filter((p) => !q || (p.name + ' ' + roleName(p.role) + ' ' + (p.insta || '')).toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name));
-  let h = '<div class="screen"><div class="top"><span class="logo">set</span><a class="avatar" href="#/me">' + esc(initials(S.profile.name)) + '</a></div><h1 class="pad4">' + T('Люди', 'People') + '</h1>';
+  let h = '<div class="screen"><div class="top"><span class="logo">set</span><a class="avatar" href="#/me">' + esc(initials(S.profile.name)) + '</a></div><h1 class="pad4">' + T('Люди', 'People') + '</h1>' + tip('people');
   h += '<input class="inp" type="search" data-b="ui.q" data-live="1" value="' + esc(ui.q || '') + '" placeholder="' + T('Имя, роль или @ник', 'Name, role or @handle') + '" aria-label="' + T('Поиск', 'Search') + '">';
   if (!S.people.length) h += '<div class="empty">' + T('Все, с кем ты снимаешь, будут здесь. Люди добавляются сами, когда ты зовёшь их в проект.', 'Everyone you shoot with lives here. People are added when you invite them to a project.') + '</div>';
   h += '<div class="card tight">' + list.map((p) => { const n = S.shoots.filter((s) => s.team.some((m) => m.pid === p.id)).length; return '<button class="li" data-a="editPerson" data-x="' + p.id + '"><span class="avatar sm soft">' + esc(initials(p.name)) + '</span><span class="grow"><b style="font-weight:600">' + esc(p.name) + '</b><br><span class="tiny muted">' + esc(roleName(p.role)) + (p.insta ? ' · ' + esc(p.insta.startsWith('@') ? p.insta : '@' + p.insta) : '') + '</span></span><span class="tiny muted mono">' + n + ' ' + T(plural(n, 'съёмка', 'съёмки', 'съёмок'), 'shoots') + '</span></button>'; }).join('') + '</div>';
@@ -839,7 +951,7 @@ function vMe() {
   let h = '<div class="screen"><div class="top">' + backBtn('#/today') + '<a class="iconbtn" href="#/settings" aria-label="' + T('Настройки', 'Settings') + '">' + I.gear + '</a></div>';
   h += '<div class="row pad4" style="gap:14px"><span class="avatar" style="width:60px;height:60px;border-radius:30px;font-size:24px">' + esc(initials(p.name)) + '</span><span class="col grow" style="gap:2px"><b style="font-size:18px">' + esc(p.name || T('Без имени', 'No name')) + '</b><span class="small muted">' + esc(rl) + '</span></span><button class="btn sm soft" data-a="editProfile">' + T('Изменить', 'Edit') + '</button></div>';
   h += '<a class="row between card" href="#/pro" style="flex-direction:row;text-decoration:none;color:inherit;padding:14px 18px"><span class="small">' + esc(subStatusText()) + '</span><span class="badge ' + (isPro() ? 'ok' : 'ink') + '">' + (isPro() ? 'SET Pro' : T('Подписка', 'Subscribe')) + '</span></a>';
-  h += '<h1 class="pad4">' + T('Мои съёмки', 'My shoots') + '</h1>';
+  h += '<h1 class="pad4">' + T('Мои съёмки', 'My shoots') + '</h1>' + tip('me');
   h += '<div class="chips">' + chip(MONTHS_N[L()][now.getMonth()], ui.per === 'month', 'setUi', 'per|month') + chip(String(now.getFullYear()), ui.per === 'year', 'setUi', 'per|year') + chip(T('Всё время', 'All time'), ui.per === 'all', 'setUi', 'per|all') + '</div>';
   h += '<div class="card glow-pink" style="padding:22px;gap:14px"><div class="col" style="gap:2px"><span class="tiny">' + T('Заработано', 'Earned') + '</span><span class="h1" style="font-family:var(--mono);font-size:42px;letter-spacing:-0.03em">' + money(earned) + ' ₽</span></div>' +
     '<div class="grid3">' + [[shifts, T(plural(shifts, 'смена', 'смены', 'смен'), 'shifts')], [list.length, T(plural(list.length, 'съёмка', 'съёмки', 'съёмок'), 'shoots')], [paidShifts ? money(earned / paidShifts) : '—', T('₽ за смену в среднем', 'avg per shift')]].map((x) => '<div class="col" style="gap:2px;padding:12px;border-radius:16px;background:rgba(255,255,255,.5)"><span class="mono" style="font-size:20px;font-weight:500">' + x[0] + '</span><span class="tiny">' + x[1] + '</span></div>').join('') + '</div>' +
@@ -862,6 +974,8 @@ function vMe() {
 function vSettings() {
   let h = '<div class="screen"><div class="top">' + backBtn('#/me') + '<span class="kicker">' + T('Настройки', 'Settings') + '</span><span style="width:44px"></span></div><h1 class="pad4">' + T('Настройки', 'Settings') + '</h1>';
   h += '<div class="card"><h3>' + T('Язык', 'Language') + '</h3><div class="chips">' + chip('Русский', S.lang === 'ru', 'lang', 'ru') + chip('English', S.lang === 'en', 'lang', 'en') + '</div></div>';
+  h += notifCard(false);
+  h += '<div class="card tight">' + sw(T('Подсказки-обучалки', 'Coaching tips'), T('короткие подсказки на каждом экране', 'short tips on each screen'), !S.tipsOff, 'toggleTips', '') + '</div>' + (S.seenTips && Object.keys(S.seenTips).length && !S.tipsOff ? '<button class="textbtn" style="align-self:flex-start" data-a="resetTips">' + T('Показать подсказки заново', 'Show tips again') + '</button>' : '');
   h += '<div class="card glow-teal"><h3>' + T('Как поставить на телефон', 'Install on your phone') + '</h3><span class="small">' + T('iPhone: в Safari нажми «Поделиться» → «На экран Домой». Android: в Chrome меню ⋮ → «Добавить на главный экран». SET откроется как приложение и будет работать без интернета.', 'iPhone: in Safari tap Share → Add to Home Screen. Android: Chrome menu ⋮ → Add to Home screen.') + '</span></div>';
   h += '<a class="card glow-pink" href="#/pro" style="text-decoration:none;color:inherit"><h3>' + T('Подписка', 'Subscription') + '</h3><span class="small">' + esc(subStatusText()) + '</span></a>';
   h += '<div class="card"><h3>' + T('Резервная копия', 'Backup') + '</h3><span class="small muted">' + T('Все данные хранятся только в этом телефоне. Сохраняй копию раз в неделю — и перед сменой телефона.', 'Your data lives only on this device. Save a backup weekly.') + '</span><div class="grid2"><button class="btn soft" data-a="exportJson">' + T('Сохранить копию', 'Save backup') + '</button><button class="btn soft" data-a="importJson">' + T('Загрузить копию', 'Restore') + '</button></div></div>';
@@ -1021,6 +1135,11 @@ const A = {
   },
   deletePerson: () => { if (!confirm(T('Удалить из базы? Из прошлых проектов человек не пропадёт.', 'Delete? Past projects keep the name.'))) return; S.people = S.people.filter((x) => x.id !== ui.sheet.data.id); ui.sheet = null; save(); render(); },
   copyText: (el) => copy(el.dataset.x),
+  tipOk: (el) => { S.seenTips = S.seenTips || {}; S.seenTips[el.dataset.x] = true; save(); render(); },
+  toggleTips: () => { S.tipsOff = !S.tipsOff; save(); render(); },
+  resetTips: () => { S.seenTips = {}; save(); toast(T('Подсказки снова включены', 'Tips are back')); render(); },
+  askNotif: async () => { try { const r = await Notification.requestPermission(); if (r === 'granted') notify(T('Уведомления включены', 'Notifications on'), T('Так SET будет напоминать о тайминге', 'This is how SET will remind you')); } catch (e) { toast(T('Не получилось включить уведомления', 'Could not enable notifications')); } render(); },
+  testNotif: () => notify(T('Через 10 мин', 'In 10 min'), T('13:00 — Обед для команды', '13:00 — Team lunch')),
   activateManual: () => { const v = ($('#actCode')?.value || '').trim(); const m = v.match(/activate\/(.+)$/); doActivate(m ? decodeURIComponent(m[1]) : v); },
 
   pickMood: (el) => { mediaTarget = { s: el.dataset.s, kind: 'mood' }; pickFiles(true); },
@@ -1183,11 +1302,11 @@ function loadDemo() {
   const t = new Date();
   const dIso = (n) => { const d = new Date(t); d.setDate(d.getDate() + n); return isoOf(d); };
   const P = (name, role, insta, food) => { const p = { id: uid(), name, role, phone: '', insta, food: food || [], note: '' }; S.people.push(p); return p; };
-  const ola = P('Оля Смирнова', 'photo', '@ola.ph'), karina = P('Карина', 'mua', '@karina.mua', ['nomeat']), mila = P('Мила', 'model', '@mila.m'), sasha = P('Саша', 'model', '@sasha.models', ['lactose']), lena = P('Лена', 'stylist', '@lena.style'), dima = P('Дима', 'light', '');
+  const ola = P(T('Оля Смирнова', 'Olivia Smith'), 'photo', '@ola.ph'), karina = P(T('Карина', 'Karina'), 'mua', '@karina.mua', ['nomeat']), mila = P(T('Мила', 'Mila'), 'model', '@mila.m'), sasha = P(T('Саша', 'Sasha'), 'model', '@sasha.models', ['lactose']), lena = P(T('Лена', 'Lena'), 'stylist', '@lena.style'), dima = P(T('Дима', 'Dima'), 'light', '');
   const M = (p, call, rate, status) => ({ id: uid(), pid: p.id, name: p.name, role: p.role, call, rate, unit: 'смена', pay: rate ? 'money' : 'tfp', barter: '', note: '', status, paid: false });
   const b = newShoot('brand', { client: T('Марта', 'Marta'), what: T('лукбук', 'lookbook'), date: dIso(3), place: T('Студия Свет', 'Studio Light'), address: T('ул. Пушкина, 12, 3 этаж, зал «Белый»', '12 Pushkin St, 3rd floor') });
   b.team = [M(ola, '09:00', '25000', 'yes'), M(karina, '08:45', '12000', 'yes'), M(mila, '09:15', '15000', 'asked'), M(sasha, '10:30', '15000', ''), M(lena, '08:30', '12000', 'yes'), M(dima, '08:30', '8000', 'yes')];
-  b.looks = [['Нежный беж', 'Мила', 'льняной костюм, лоферы'], ['Город', 'Саша', 'тренч, джинсы'], ['Вечер', 'Мила', 'шёлковое платье'], ['Выходной', 'Саша', 'трикотаж, кеды']].map((x) => ({ id: uid(), name: x[0], model: x[1], clothes: x[2], makeup: T('нюд', 'nude'), hair: T('гладкий пучок', 'sleek bun'), mua: 'Карина', ref: '', done: false }));
+  b.looks = [[T('Нежный беж', 'Soft beige'), mila.name, T('льняной костюм, лоферы', 'linen suit, loafers')], [T('Город', 'City'), sasha.name, T('тренч, джинсы', 'trench, jeans')], [T('Вечер', 'Evening'), mila.name, T('шёлковое платье', 'silk dress')], [T('Выходной', 'Weekend'), sasha.name, T('трикотаж, кеды', 'knitwear, sneakers')]].map((x) => ({ id: uid(), name: x[0], model: x[1], clothes: x[2], makeup: T('нюд', 'nude'), hair: T('гладкий пучок', 'sleek bun'), mua: karina.name, ref: '', done: false }));
   b.checklist.slice(0, 4).forEach((c) => { c.done = true; });
   b.budget.lines.forEach((x, i) => { x.rate = String([6000, 5000, 12000, 8000, 6000, 35000, 15000, 40000, 8000, 3000, 6000, 6000, 3000, 500][i] || ''); x.qty = String([4, 2, 1, 1, 1, 1, 2, 1, 1, 6, 1, 1, 1, 30][i] || 1); }); b.budget.lines[2].pay = 'barter'; b.budget.lines[2].barter = '15000'; b.budget.lines[2].rate = '';
   b.rights = T('1 год · онлайн · Россия', '1 year · online'); b.my.fee = '35000'; b.my.role = 'producer';
@@ -1236,6 +1355,7 @@ function render() {
   else if (a === 'p') html = vProject(b, c);
   else html = vNotFound();
   document.body.style.background = a === 'p' && c === 'onset' ? '#1A1A22' : '';
+  if (a === 'p' && c === 'onset') startCoach(); else stopCoach();
   $('#app').innerHTML = html + vSheet();
   if (location.hash === lastHash) window.scrollTo(0, keep); else window.scrollTo(0, 0);
   lastHash = location.hash;
