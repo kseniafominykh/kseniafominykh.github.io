@@ -1,6 +1,6 @@
 'use strict';
 /* SET — beta. All data lives on this device (localStorage). */
-const VERSION = '0.9.8 beta';
+const VERSION = '0.9.9 beta';
 const KEY = 'set.v1';
 
 /* ---------- helpers ---------- */
@@ -597,6 +597,7 @@ function vToday() {
   h += '<div class="top"><span class="logo">set</span><div class="row"><a class="iconbtn" href="#/settings" aria-label="' + T('Настройки', 'Settings') + '">' + I.gear + '</a><a class="avatar" href="#/me" aria-label="' + T('Профиль и доход', 'Profile and income') + '">' + esc(initials(S.profile.name)) + '</a></div></div>';
   h += '<div class="col pad4" style="gap:4px"><span class="kicker">' + esc(WD_L[L()][d.getDay()]) + ', ' + fmtDate(t) + '</span><h1>' + (todays.length ? T('Сегодня<br>съёмка', 'Shoot<br>today') : (nextS ? T('Сегодня<br>спокойно', 'A calm<br>day') : T('Чистый<br>лист', 'A blank<br>page'))) + '</h1></div>';
   h += tip('today');
+  h += recapBanner();
   if (!S.shoots.length) {
     h += '<div class="card glow-pink" style="padding:22px"><h2>' + T('Первая съёмка', 'Your first shoot') + '</h2><span>' + T('Создай проект — тайминг, команда и образы соберутся в одном месте.', 'Create a project — schedule, team and looks in one place.') + '</span><a class="btn" href="#/new">' + T('Новая съёмка', 'New shoot') + '</a><button class="textbtn" data-a="demo">' + T('Сначала посмотреть на примере', 'Explore an example first') + '</button></div>';
   }
@@ -957,6 +958,7 @@ function vMe() {
     '<div class="grid3">' + [[shifts, T(plural(shifts, 'смена', 'смены', 'смен'), 'shifts')], [list.length, T(plural(list.length, 'съёмка', 'съёмки', 'съёмок'), 'shoots')], [paidShifts ? money(earned / paidShifts) : '—', T('₽ за смену в среднем', 'avg per shift')]].map((x) => '<div class="col" style="gap:2px;padding:12px;border-radius:16px;background:rgba(255,255,255,.5)"><span class="mono" style="font-size:20px;font-weight:500">' + x[0] + '</span><span class="tiny">' + x[1] + '</span></div>').join('') + '</div>' +
     (bartered ? '<div class="row between small"><span>' + T('Бартером и сертификатами', 'In barter and vouchers') + '</span><b class="mono">' + money(bartered) + ' ₽</b></div>' : '') + (owed ? '<div class="inkcard row between"><span>' + T('Ещё должны заплатить', 'Still owed to you') + '</span><b class="mono">' + money(owed) + ' ₽</b></div>' : '') +
     (noCheck.length ? '<span class="small">' + T('Чек в «Мой налог» не выбит: ', 'No receipt yet: ') + esc(noCheck.map((s) => s.client || titleOf(s)).join(', ')) + '</span>' : '') + '</div>';
+  h += '<button class="btn big" data-a="openRecap" data-x="' + (ui.per === 'month' ? 'm0' : 'y0') + '">' + T('Поделиться итогами', 'Share my recap') + ' ↗</button>';
   if (mk.length) h += '<div class="card bars"><span class="tiny muted">' + T('По месяцам, ₽', 'By month') + '</span>' + mk.map((k) => '<div style="display:grid;grid-template-columns:62px minmax(0,1fr) 78px;gap:10px;align-items:center" class="small"><span>' + esc(MON_S[L()][Number(k.slice(5)) - 1] + ' ' + k.slice(2, 4)) + '</span><span class="bar"><i style="width:' + Math.round(months[k] / max * 100) + '%"></i></span><span class="mono" style="text-align:right">' + money(months[k]) + '</span></div>').join('') + '</div>';
   h += '<div class="chips">' + chip(T('Все', 'All'), ui.src === 'all', 'setUi', 'src|all', 'sm') + chip(T('Через SET', 'Via SET'), ui.src === 'set', 'setUi', 'src|set', 'sm') + chip(T('Добавила сама', 'Added by me'), ui.src === 'own', 'setUi', 'src|own', 'sm') + '</div>';
   if (!shown.length) h += '<div class="empty">' + T('Прошедшие съёмки появятся здесь. Свои — добавь в календаре.', 'Past shoots appear here. Add your own in the calendar.') + '</div>';
@@ -1028,7 +1030,8 @@ function vSheet() {
     const clash = s.date && S.shoots.find((x) => x.id !== s.id && x.date === s.date);
     h += '<div class="row between"><h2>' + (sh.isNew ? T('Своя съёмка', 'Own shoot') : esc(titleOf(s))) + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>';
     if (own) h += field(T('Что снимаем', 'What'), '<input class="inp" id="oTitle" value="' + esc(s.client || s.what ? titleOf(s) : '') + '" placeholder="' + T('Шоурум · лукбук', 'Showroom · lookbook') + '">') +
-      '<div class="grid2">' + field(T('Дата', 'Date'), '<input class="inp" type="date" id="oDate" value="' + esc(s.date) + '" data-a2="ownDate">') + field(T('Сбор', 'Call'), '<input class="inp mono" type="time" data-time="1" id="oCall" value="' + esc(s.call) + '">') + '</div>';
+      field(T('Дата', 'Date'), '<input class="inp" type="date" id="oDate" value="' + esc(s.date) + '" data-a2="ownDate">') +
+      '<div class="grid2">' + field(T('Сбор', 'Call'), '<input class="inp mono" type="time" data-time="1" id="oCall" value="' + esc(s.call) + '">') + field(T('Конец', 'Wrap'), '<input class="inp mono" type="time" data-time="1" id="oEnd" value="' + esc(s.end || '') + '">') + '</div><span class="tiny muted">' + T('По сбору и концу посчитаем часы на площадке — для твоих итогов', 'Call and wrap give your hours on set — for your recap') + '</span>';
     if (clash) h += '<span class="small" style="color:var(--red);font-weight:600">' + T('В этот день уже есть: ', 'Already booked that day: ') + esc(titleOf(clash)) + '</span>';
     h += '<div class="grid2">' + field(T('Роль', 'Role'), roleSelect('', s.my.role).replace('data-b=""', 'id="oRole"')) + field(T('Деньгами, ₽', 'Money'), '<input class="inp mono" inputmode="numeric" id="oFee" value="' + esc(s.my.fee) + '" placeholder="0">') + '</div>' +
       '<div class="chips">' + ['money', 'barter', 'cert', 'mix', 'tfp'].map((k) => '<button class="chip sm" data-a="sheetPay" data-x="' + k + '" aria-pressed="' + ((s.my.pay || 'money') === k) + '">' + esc(payName(k)) + '</button>').join('') + '</div>' +
@@ -1054,12 +1057,141 @@ function vSheet() {
   if (sh.type === 'img') {
     h += '<div class="row between"><h2>' + T('Референс', 'Reference') + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>' + imgTag(sh.id, 'width:100%;border-radius:18px;display:block') + '<button class="btn danger" data-a="delMood" data-s="' + sh.s + '" data-x="' + sh.id + '">' + T('Убрать из мудборда', 'Remove') + '</button>';
   }
+  if (sh.type === 'recap') {
+    const d = recapData(sh.k);
+    const per = rcPeriods().filter((x) => x.k !== 'y1' || recapData('y1').n);
+    h += '<div class="row between"><h2>' + T('Итоги', 'Recap') + '</h2><button class="iconbtn" data-a="closeSheet" aria-label="' + T('Закрыть', 'Close') + '">' + I.x + '</button></div>';
+    h += '<div class="chips">' + per.map((x) => chip(x.label, x.k === sh.k, 'rcPer', x.k, 'sm')).join('') + '</div>';
+    if (!d.n) h += '<div class="empty">' + T('В этом периоде пока нет прошедших съёмок. Добавь свои в календаре — и итоги соберутся.', 'No past shoots in this period yet. Add your own in the calendar and the recap fills itself.') + '</div>';
+    else {
+      h += '<img id="rcImg" alt="' + T('Итоги — картинка для сторис', 'Recap story image') + '" style="width:100%;aspect-ratio:9/16;border-radius:22px;display:block;background:#EDEBEF;box-shadow:0 12px 40px rgba(26,26,34,.12)">';
+      h += '<div class="chips">' + RC_TH.map((t, i) => chip(L() === 'en' ? t.en : t.ru, (S.rcTh || 0) === i, 'rcTh', String(i), 'sm')).join('') + '</div>';
+      h += sw(T('Показать сумму', 'Show the amount'), T('выключи — останутся съёмки и часы', 'off — only shoots and hours stay'), !S.rcHide, 'rcHide', '');
+      if (d.owed && !S.rcHide) h += '<span class="tiny muted">' + T('В сумме и то, что ещё должны заплатить: ', 'Includes money still owed: ') + money(d.owed) + ' ₽</span>';
+      h += '<button class="btn big" data-a="rcShare">' + T('Поделиться в сторис', 'Share to stories') + '</button><button class="btn soft" data-a="rcSave">' + T('Сохранить картинку', 'Save image') + '</button>';
+      h += '<span class="tiny muted">' + T('В сторис добавь стикер «Ссылка» на kseniafominykh.github.io/set — так тебя спросят «где ты это сделала?» и найдут приложение', 'Add a Link sticker to kseniafominykh.github.io/set in your story — that’s how friends find the app') + '</span>';
+    }
+  }
   if (sh.type === 'menu') {
     const s = getShoot(sh.s);
     h += '<h2>' + esc(titleOf(s)) + '</h2><button class="btn soft" data-a="dupShoot">' + T('Дублировать как шаблон', 'Duplicate as template') + '</button><button class="btn soft" data-a="go" data-x="#/p/' + s.id + '/wrap">' + T('После съёмки', 'After the shoot') + '</button><button class="btn danger" data-a="deleteShoot">' + T('Удалить съёмку', 'Delete shoot') + '</button><button class="btn ghost" data-a="closeSheet">' + T('Отмена', 'Cancel') + '</button>';
   }
   h += '</div></div>';
   return h;
+}
+
+/* --- recap: итоги месяца и года --- */
+const RC_TH = [
+  { ru: 'Розовый', en: 'Pink', bg: '#F7F6F4', ink: '#1A1A22', sub: '#6E6B75', card: 'rgba(255,255,255,0.62)', glow: [['244,161,195', 0.95, 0.1, 0.75], ['249,217,62', 0.02, 0.72, 0.55], ['133,163,229', 0.9, 0.95, 0.45]] },
+  { ru: 'Лимонный', en: 'Lemon', bg: '#F7F6F4', ink: '#1A1A22', sub: '#6E6B75', card: 'rgba(255,255,255,0.6)', glow: [['249,217,62', 0.9, 0.08, 0.8], ['133,163,229', 0.05, 0.85, 0.6], ['244,161,195', 0.95, 0.6, 0.35]] },
+  { ru: 'Ночь', en: 'Night', bg: '#1A1A22', ink: '#F7F6F4', sub: '#CFCCD6', card: 'rgba(16,16,24,0.42)', glow: [['59,79,176', 0.95, 0.08, 0.85], ['244,161,195', 0.02, 0.8, 0.55], ['9,118,156', 0.9, 0.98, 0.45]] },
+];
+function rcPeriods() {
+  const n = new Date(); const y = n.getFullYear(); const m = n.getMonth(); const pm = new Date(y, m - 1, 1);
+  const mo = (yy, mm) => ({ kind: 'month', pre: yy + '-' + pad(mm + 1), y: yy, m: mm, label: MONTHS_N[L()][mm] + (yy !== y ? ' ' + yy : '') });
+  return [{ k: 'm0', ...mo(y, m) }, { k: 'm1', ...mo(pm.getFullYear(), pm.getMonth()) }, { k: 'y0', kind: 'year', pre: String(y), y, label: String(y) }, { k: 'y1', kind: 'year', pre: String(y - 1), y: y - 1, label: String(y - 1) }];
+}
+function recapData(k) {
+  const p = rcPeriods().find((x) => x.k === k) || rcPeriods()[2];
+  const list = myEntries().filter((s) => !s.demo && s.date.startsWith(p.pre));
+  const sh = (s) => Math.max(1, Number(s.my.shifts) || 1);
+  const earned = list.reduce((a, s) => a + myMoney(s), 0);
+  const owed = list.filter((s) => !s.my.paid).reduce((a, s) => a + myMoney(s), 0);
+  const barter = list.reduce((a, s) => a + myBarter(s), 0);
+  const shifts = list.reduce((a, s) => a + sh(s), 0);
+  const hours = list.reduce((a, s) => a + durationH(s) * sh(s), 0);
+  const longest = Math.max(0, ...list.map(durationH));
+  const people = new Set(); list.forEach((s) => (s.team || []).forEach((m) => { const id = m.pid || (m.name || '').trim().toLowerCase(); if (id) people.add(id); }));
+  const clients = new Set(list.map((s) => (s.client || '').trim().toLowerCase()).filter(Boolean)).size;
+  const byM = {}; list.forEach((s) => { const km = Number(s.date.slice(5, 7)) - 1; byM[km] = (byM[km] || 0) + 1; });
+  const topM = Object.keys(byM).sort((a, b) => byM[b] - byM[a])[0];
+  const byR = {}; list.forEach((s) => { if (s.my.role) byR[s.my.role] = (byR[s.my.role] || 0) + 1; });
+  const topR = Object.keys(byR).sort((a, b) => byR[b] - byR[a])[0];
+  return { p, n: list.length, earned, owed, barter, shifts, hours, longest, people: people.size, clients, topM: topM == null ? null : Number(topM), topMn: topM == null ? 0 : byM[topM], topR, roles: Object.keys(byR).length };
+}
+function recapBanner() {
+  const d = new Date(); const day = d.getDate(); const m = d.getMonth();
+  let k = null;
+  if ((m === 11 && day >= 15)) k = 'y0'; else if (m === 0 && day <= 15) k = 'y1'; else if (day >= 25) k = 'm0'; else if (day <= 5) k = 'm1';
+  if (!k) return '';
+  const r = recapData(k); const key = k + ':' + r.p.pre;
+  if (!r.n || S.rcSeen === key) return '';
+  const what = r.p.kind === 'year' ? T('Итоги ' + r.p.y + ' года', 'Your ' + r.p.y + ' recap') : T('Итоги ' + MONTHS[L()][r.p.m].replace(/^./, (c) => c), 'Your ' + MONTHS.en[r.p.m] + ' recap');
+  return '<div class="card glow-lemon" style="gap:10px"><div class="row between" style="align-items:flex-start"><b style="font-size:17px">' + esc(what) + T(' готовы', ' is ready') + '</b><button class="iconbtn sm" data-a="rcHideBanner" data-x="' + esc(key) + '" aria-label="' + T('Скрыть', 'Hide') + '">' + I.x + '</button></div><span class="small">' + r.n + ' ' + T(plural(r.n, 'съёмка', 'съёмки', 'съёмок'), 'shoots') + (r.hours ? ' · ' + rcNum(r.hours) + T(' ч на площадке', ' h on set') : '') + T(' — одной картинкой для сторис', ' — in one story image') + '</span><button class="btn" data-a="openRecap" data-x="' + k + '">' + T('Посмотреть и поделиться', 'View and share') + '</button></div>';
+}
+const rcNum = (h) => (h < 10 ? String(Math.round(h * 10) / 10).replace('.', ',') : String(Math.round(h)));
+let rcFile = null; let rcJob = 0;
+function rcDownload() { const a = document.createElement('a'); a.href = URL.createObjectURL(rcFile); a.download = rcFile.name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }
+async function paintRecap() {
+  const img = $('#rcImg'); if (!img) return;
+  const job = ++rcJob; rcFile = null;
+  const d = recapData(ui.sheet.k);
+  const cv = document.createElement('canvas');
+  await drawRecap(cv, d, { hide: !!S.rcHide, th: S.rcTh || 0 });
+  if (job !== rcJob) return;
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+  if (job !== rcJob || !blob) return;
+  rcFile = new File([blob], 'set-' + T('itogi', 'recap') + '-' + d.p.pre + '.png', { type: 'image/png' });
+  const el = $('#rcImg'); if (el) el.src = URL.createObjectURL(blob);
+}
+function rcFit(c, text, font, size, maxW) { let s = size; c.font = font.replace('%', s); while (c.measureText(text).width > maxW && s > 20) { s -= 4; c.font = font.replace('%', s); } return s; }
+function rcRound(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+async function drawRecap(cv, d, o) {
+  const W = 1080, H = 1920, X = 88; cv.width = W; cv.height = H;
+  const c = cv.getContext('2d'); const th = RC_TH[o.th] || RC_TH[0];
+  try { await Promise.race([Promise.all(['400 90px Neucha', '500 150px "Inter Tight"', '400 40px Inter', '600 40px Inter', '500 100px "IBM Plex Mono"'].map((f) => document.fonts.load(f, 'Итоги set 0123 ₽'))), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* offline: system fonts */ }
+  const HEAD = '"Inter Tight", Inter, system-ui, sans-serif', BODY = 'Inter, system-ui, sans-serif', MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+  const ls = (v) => { if ('letterSpacing' in c) c.letterSpacing = v; };
+  c.fillStyle = th.bg; c.fillRect(0, 0, W, H);
+  th.glow.forEach(([rgb, gx, gy, r]) => { const g = c.createRadialGradient(gx * W, gy * H, 0, gx * W, gy * H, r * W * 1.3); g.addColorStop(0, 'rgba(' + rgb + ',0.9)'); g.addColorStop(0.42, 'rgba(' + rgb + ',0.32)'); g.addColorStop(1, 'rgba(' + rgb + ',0)'); c.fillStyle = g; c.fillRect(0, 0, W, H); });
+  c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  // header
+  c.fillStyle = th.ink; c.font = '400 96px Neucha, ' + HEAD; ls('0px'); c.fillText('set', X, 300);
+  c.textAlign = 'right'; c.fillStyle = th.sub; c.font = '500 32px ' + MONO; ls('2px');
+  c.fillText((d.p.kind === 'year' ? T('ИТОГИ ГОДА', 'YEAR IN REVIEW') : T('ИТОГИ МЕСЯЦА', 'MONTH IN REVIEW')), W - X, 290); c.textAlign = 'left'; ls('0px');
+  // title
+  const t1 = d.p.kind === 'year' ? T('Мой', 'My') : T('Мой', 'My');
+  const t2 = d.p.kind === 'year' ? String(d.p.y) : (L() === 'en' ? MONTHS.en[d.p.m] : MONTHS_N.ru[d.p.m].toLowerCase());
+  c.fillStyle = th.ink; ls('-6px');
+  const fs = rcFit(c, t2, '500 %px ' + HEAD, 176, W - 2 * X);
+  c.font = '500 ' + fs + 'px ' + HEAD; c.fillText(t1, X - 6, 520); c.fillText(t2, X - 6, 520 + fs * 0.92); ls('0px');
+  let y = 520 + fs * 0.92 + 76;
+  const who = [S.profile.name, d.topR && ROLE[d.topR] ? roleName(d.topR).toLowerCase() : ''].filter(Boolean).join(' · ');
+  if (who) { c.fillStyle = th.sub; rcFit(c, who, '400 %px ' + BODY, 40, W - 2 * X); c.fillText(who, X, y); }
+  y += 140;
+  // hero
+  const showMoney = !o.hide && d.earned > 0;
+  const heroLabel = showMoney ? T('заработано на съёмках', 'earned on shoots') : d.hours ? T('на площадке', 'on set') : T('съёмок', 'shoots');
+  const heroVal = showMoney ? money(d.earned) + ' ₽' : d.hours ? rcNum(d.hours) + T(' ч', ' h') : String(d.n);
+  c.fillStyle = th.sub; c.font = '400 36px ' + BODY; c.fillText(heroLabel, X, y);
+  c.fillStyle = th.ink; ls('-4px'); const hs = rcFit(c, heroVal, '500 %px ' + MONO, 150, W - 2 * X); c.fillText(heroVal, X - 4, y + hs * 0.98); ls('0px');
+  y += hs * 0.98 + 70;
+  // tiles
+  const tiles = [];
+  if (!(heroLabel === T('съёмок', 'shoots'))) tiles.push([String(d.n), T(plural(d.n, 'съёмка', 'съёмки', 'съёмок'), 'shoots')]);
+  if (d.hours && showMoney) tiles.push([rcNum(d.hours), T('часов на площадке', 'hours on set')]);
+  tiles.push([String(d.shifts), T(plural(d.shifts, 'смена', 'смены', 'смен'), 'shifts')]);
+  if (d.people) tiles.push([String(d.people), T(plural(d.people, 'человек', 'человека', 'человек') + ' в командах', 'people on my teams')]);
+  if (d.clients) tiles.push([String(d.clients), T(plural(d.clients, 'клиент', 'клиента', 'клиентов') + ' и брендов', 'clients & brands')]);
+  if (d.longest >= 8) tiles.push([rcNum(d.longest) + T(' ч', 'h'), T('самый длинный день', 'longest day')]);
+  if (!o.hide && d.barter) tiles.push([money(d.barter), T('₽ бартером', '₽ in barter')]);
+  const tw = (W - 2 * X - 28) / 2, tht = 214;
+  tiles.slice(0, 4).forEach((t, i) => {
+    const tx = X + (i % 2) * (tw + 28), ty = y + Math.floor(i / 2) * (tht + 28);
+    c.fillStyle = th.card; rcRound(c, tx, ty, tw, tht, 48); c.fill();
+    c.fillStyle = th.ink; ls('-2px'); const ns = rcFit(c, t[0], '500 %px ' + MONO, 92, tw - 72); c.fillText(t[0], tx + 36, ty + 40 + ns * 0.9); ls('0px');
+    c.fillStyle = th.sub; rcFit(c, t[1], '400 %px ' + BODY, 32, tw - 72); c.fillText(t[1], tx + 36, ty + tht - 40);
+  });
+  y += Math.ceil(Math.min(4, tiles.length) / 2) * (tht + 28) + 40;
+  // fact line
+  let fact = '';
+  if (d.p.kind === 'year' && d.topM != null && d.topMn > 1) fact = T('Самый плотный месяц — ' + MONTHS_N.ru[d.topM].toLowerCase() + ', ' + d.topMn + ' ' + plural(d.topMn, 'съёмка', 'съёмки', 'съёмок'), 'Busiest month — ' + MONTHS.en[d.topM] + ', ' + d.topMn + ' shoots');
+  else if (d.roles > 1) fact = T('В ' + d.roles + ' ' + plural(d.roles, 'роли', 'ролях', 'ролях') + ' за ' + (d.p.kind === 'year' ? 'год' : 'месяц'), d.roles + ' different roles this ' + (d.p.kind === 'year' ? 'year' : 'month'));
+  if (fact && y < 1660) { c.fillStyle = th.ink; rcFit(c, fact, '600 %px ' + BODY, 38, W - 2 * X); c.fillText(fact, X, y + 20); }
+  // footer
+  c.fillStyle = th.sub; c.globalAlpha = 0.35; c.fillRect(X, 1700, W - 2 * X, 2); c.globalAlpha = 1;
+  c.font = '400 30px ' + BODY; c.fillText(T('Собрано в SET — приложении для съёмок', 'Made with SET — the shoot app'), X, 1760);
+  c.fillStyle = th.ink; c.font = '500 30px ' + MONO; c.fillText('kseniafominykh.github.io/set', X, 1806);
 }
 
 /* ---------- actions ---------- */
@@ -1112,6 +1244,17 @@ const A = {
     const url = k === 'tg' ? 'https://t.me/share/url?url=' + encodeURIComponent(' ') + '&text=' + encodeURIComponent(text) : 'https://wa.me/' + (ui.sheet.phone ? String(ui.sheet.phone).replace(/\D/g, '') : '') + '?text=' + encodeURIComponent(text);
     window.open(url, '_blank', 'noopener');
   },
+  openRecap: (el) => { ui.sheet = { type: 'recap', k: el.dataset.x || 'y0' }; render(); },
+  rcPer: (el) => { ui.sheet.k = el.dataset.x; render(); },
+  rcTh: (el) => { S.rcTh = Number(el.dataset.x); save(); render(); },
+  rcHide: () => { S.rcHide = !S.rcHide; save(); render(); },
+  rcHideBanner: (el) => { S.rcSeen = el.dataset.x; save(); render(); },
+  rcShare: async () => {
+    if (!rcFile) { toast(T('Картинка ещё рисуется…', 'Still drawing…')); return; }
+    if (navigator.canShare && navigator.canShare({ files: [rcFile] })) { try { await navigator.share({ files: [rcFile] }); } catch (e) { /* cancelled */ } return; }
+    rcDownload(); toast(T('Картинка сохранена — выложи её в сторис', 'Saved — post it to your story'));
+  },
+  rcSave: () => { if (rcFile) { rcDownload(); toast(T('Картинка сохранена', 'Image saved')); } },
   closeSheet: (el, ev) => { if (el.dataset.self && ev.target !== el) return; closeSheet(); },
   memberStatus: (el) => { const s = getShoot(el.dataset.s); const [id, st] = el.dataset.x.split('|'); const m = s.team.find((x) => x.id === id); m.status = m.status === st ? '' : st; save(); render(); },
   editMember: (el) => { const s = getShoot(el.dataset.s); const id = el.dataset.x; const m = id ? s.team.find((x) => x.id === id) : { id: uid(), name: '', role: 'model', call: s.call, rate: '', unit: 'смена', pay: 'money', barter: '', note: '', status: '' }; ui.sheet = { type: 'member', s: s.id, data: { ...m }, isNew: !id }; render(); setTimeout(() => $('#mName')?.focus(), 50); },
@@ -1239,6 +1382,7 @@ function keepOwnInputs() {
   if (g('oTitle')) { const v = g('oTitle').value.trim(); const parts = v.split(' · '); d.client = parts.length > 1 ? parts.shift() : ''; d.what = parts.join(' · '); }
   if (g('oDate')) d.date = g('oDate').value;
   if (g('oCall')) d.call = normTime(g('oCall').value);
+  if (g('oEnd')) d.end = normTime(g('oEnd').value);
   if (g('oRole')) d.my.role = g('oRole').value;
   if (g('oFee')) d.my.fee = g('oFee').value.replace(/[^\d]/g, '');
   if (g('oNote')) d.my.note = g('oNote').value;
@@ -1360,6 +1504,7 @@ function render() {
   if (location.hash === lastHash) window.scrollTo(0, keep); else window.scrollTo(0, 0);
   lastHash = location.hash;
   hydrate();
+  if (ui.sheet && ui.sheet.type === 'recap') paintRecap();
   if (activeB) { const e = document.querySelector('[data-b="' + CSS.escape(activeB) + '"]'); if (e) { e.focus(); try { if (selStart != null) e.setSelectionRange(selStart, selStart); } catch (x) { /* date inputs */ } } }
 }
 
